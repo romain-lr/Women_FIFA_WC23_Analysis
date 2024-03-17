@@ -1,0 +1,467 @@
+---
+title: "Untitled"
+output: html_document
+date: "2024-02-25"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(StatsBombR)
+library(extrafont)
+```
+
+```{r}
+# World Cup 2023 (id 72)
+WC2023 <- FreeCompetitions() %>%
+filter(competition_id==72 & season_name=="2023")
+
+# Games availables in WC2023
+Matches <- FreeMatches(WC2023)
+
+# Events for the games of the WC2023
+WC2023_dataframe <- free_allevents(MatchesDF = Matches, Parallel = T)
+WC2023_dataframe = allclean(WC2023_dataframe)
+```
+
+```{r}
+library(stringr)
+library(dplyr)
+WC2023_dataframe <- WC2023_dataframe %>%
+  mutate(team.name = str_remove(team.name, " Women's"))
+
+WC2023_dataframe <- WC2023_dataframe %>%
+  mutate(possession_team.name = str_remove(possession_team.name, " Women's"))
+```
+
+```{r}
+#Nombre de buts et tirs sur tous les matchs pour chaque équipe
+shots_goals = WC2023_dataframe %>%
+group_by(team.name) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+```
+
+```{r}
+library(ggplot2)
+
+
+# Créer un diagramme en barres horizontal
+ggplot(shots_goals, aes(y = reorder(as.factor(team.name), goals))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Nombre de tirs et de buts pour chaque équipe",
+       y = "Equipe",
+       x = "Nombre") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green")) +
+  theme(text=element_text(family = font_family))
+```
+il serait intéressant de faire ce graphique sur le nombre moyen de buts et de tirs, car certaines equipes ont plus de matchs que d'autres, faussant un peu les résultats
+
+
+```{r}
+library(ggplot2)
+
+
+
+ggplot(shots_goals, aes(y = reorder(as.factor(team.name), goals/shots*100))) +
+  geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Pourcentage de tirs menant à un but",
+       y = "Equipe",
+       x = "Pourcentage") +
+  theme(text=element_text(family = font_family))
+```
+
+
+
+```{r}
+#Nombre de buts et tirs sur chaque match pour les deux équipes
+shots_goals_all_matches = WC2023_dataframe %>%
+group_by(match_id) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+
+```
+
+```{r}
+#On affiche les id de tous les matchs de la France
+
+Id_France = WC2023_dataframe%>% filter(team.name=="France")
+match_ids_france=unique(Id_France$match_id)
+print(match_ids_france)
+```
+
+
+
+
+```{r}
+
+# On affiche pour chaque match de la France le nombre de tirs et de buts au total pour les 2 équipes (France+adversaire)
+
+
+france_goals <- shots_goals_all_matches %>%
+  filter(match_id %in% match_ids_france)
+
+print(france_goals)
+```
+
+
+
+
+```{r}
+library(ggplot2)
+
+
+ggplot(france_goals, aes(y = as.factor(match_id))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Nombre de tirs et de buts pour chaque match de la France",
+       y = "Match_id",
+       x = "Nombre") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green")) +
+  theme(text=element_text(family = font_family))
+  
+```
+
+
+
+```{r}
+library(ggplot2)
+
+
+
+ggplot(france_goals, aes(y = reorder(as.factor(match_id), goals/shots*100))) +
+  geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Pourcentage de tirs menant à un but dans les matchs de la France",
+       y = "Match",
+       x = "Pourcentage") +
+  theme(text=element_text(family = font_family))
+
+#Il faut ordonner par date pour avoir l'évolution de la stratégie au cours de la compétition
+
+
+```
+
+```{r}
+
+#On veut savoir quels buts viennent de la France
+shots_goals_France_all_matches = WC2023_dataframe %>%
+filter(team.name=="France") %>%
+group_by(match_id) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+
+print (shots_goals_France_all_matches)
+
+library(ggplot2)
+
+
+ggplot(shots_goals_France_all_matches, aes(y = as.factor(match_id))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Nombre de tirs et de buts pour chaque match de la France",
+       y = "Match_id",
+       x = "Nombre") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green")) +
+  theme(text=element_text(family = font_family))
+  
+
+library(ggplot2)
+
+
+
+ggplot(shots_goals_France_all_matches, aes(y = as.factor(match_id))) +
+  geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Pourcentage de tirs menant à un but dans les matchs de la France",
+       y = "Match",
+       x = "Pourcentage") +
+  theme(text=element_text(family = font_family))
+
+#Ordonnée du bas vers le haut : 1er match jusqu'au dernier
+
+
+
+```
+
+
+```{r}
+#Nombre de buts et tirs sur tous les matchs en fonction du type de tirs
+shots_goals_formation = WC2023_dataframe %>%
+group_by(shot.type.name) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+
+shots_goals_formation=shots_goals_formation[-c(5),]
+```
+
+```{r}
+library(ggplot2)
+
+
+# Créer un diagramme en barres horizontal
+ggplot(shots_goals_formation, aes(y = reorder(as.factor(shot.type.name), goals))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Nombre de tirs et de buts pour chaque type de tirs",
+       y = "type",
+       x = "Nombre") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green")) +
+  theme(text=element_text(family = font_family))
+```
+```{r}
+library(ggplot2)
+
+
+# Créer un diagramme en barres horizontal
+ggplot(shots_goals_formation, aes(y = reorder(as.factor(shot.type.name), goals/shots*100))) +
+  geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Pourcentage de tirs menant à un but",
+       y = "type",
+       x = "Pourcentage") +
+  theme(text=element_text(family = font_family))
+
+
+
+```
+
+
+
+
+```{r}
+#Nombre de buts et tirs sur tous les matchs en fonction de la technique de tir
+shots_goals_technique = WC2023_dataframe %>%
+group_by(shot.technique.name) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+
+#On enlève la ligne NA
+
+shots_goals_technique=shots_goals_technique[-c(8),]
+```
+
+```{r}
+library(ggplot2)
+
+
+
+ggplot(shots_goals_technique, aes(y = reorder(as.factor(shot.technique.name), goals))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Nombre de tirs et de buts pour chaque technique de tir",
+       y = "technique de tir",
+       x = "Nombre") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green")) +
+  theme(text=element_text(family = font_family))
+```
+
+
+```{r}
+library(ggplot2)
+
+
+
+ggplot(shots_goals_technique, aes(y = reorder(as.factor(shot.technique.name), goals/shots*100))) +
+  geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Pourcentage de tirs menant à un but",
+       y = "technique de tir",
+       x = "Pourcentage") +
+  theme(text=element_text(family = font_family))
+
+```
+
+
+
+
+```{r}
+#Nombre de buts et tirs sur tous les matchs en fonction de la zone du corps utilisée
+shots_goals_part = WC2023_dataframe %>%
+group_by(shot.body_part.name) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+shots_goals_part=shots_goals_part[-c(5),]
+
+
+```
+
+```{r}
+library(ggplot2)
+
+
+ggplot(shots_goals_part, aes(y = reorder(as.factor(shot.body_part.name), goals))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Nombre de tirs et de buts pour chaque zone du corps",
+       y = "Zone du corps",
+       x = "Nombre") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green")) +
+  theme(text=element_text(family = font_family))
+```
+
+```{r}
+library(ggplot2)
+
+
+ggplot(shots_goals_part, aes(y = reorder(as.factor(shot.body_part.name), goals/shots*100))) +
+  geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Pourcentage de tirs menant à un but",
+       y = "Zone du corps",
+       x = "Pourcentage") +
+  theme(text=element_text(family = font_family))
+```
+
+
+
+```{r}
+#On créé un dataframe avec seulement les tirs
+
+shots = WC2023_dataframe %>%
+ filter(type.name=="Shot")
+```
+
+
+```{r}
+#On fait un modèle pour faire une regression logistique : on veut en sortie 0 ou 1 en fonction de si le tir se transforme en but
+
+#on garde les variables étudiées précédemment:
+
+df_model_1 <- select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name)
+df_model_1$shot.outcome.name <- ifelse(df_model_1$shot.outcome.name == "Goal", 1, 0)
+
+
+```
+```{r}
+#On teste une regression sans intéraction
+glm.model_1<-glm(shot.outcome.name~ . ,data=df_model_1,family=binomial(link="logit"))
+summary(glm.model_1)
+```
+```{r}
+#Calcul du R2:
+print(1-(glm.model_1$deviance/glm.model_1$null.deviance))
+
+```
+```{r}
+
+#On teste une regression avec intéraction
+glm.model_1_interac<-glm(shot.outcome.name~ .^2 ,data=df_model_1,family=binomial(link="logit"))
+summary(glm.model_1_interac)
+
+#Beaucoup de NA car certaines intéractions impossible (ex : reprise de volley sur un pénalty)
+```
+```{r}
+#Calcul du R2:
+print(1-(glm.model_1_interac$deviance/glm.model_1_interac$null.deviance))
+```
+```{r}
+#On essaye de voir quel serait le R2 max avec toutes les variables
+shots_complet = WC2023_dataframe %>%
+ filter(type.name=="Shot")
+shots_complet$shot.outcome.name <- ifelse(shots_complet$shot.outcome.name == "Goal", 1, 0)
+shots_complet= shots_complet[,c(73:87)]
+shots_complet= shots_complet[,-c(2,5)]
+
+#Pas concluant parce que dans le dataframe plein de colonnes qui n'avaient pas le bon format
+
+```
+
+```{r}
+#On teste une regression sans intéraction
+glm.model_complet<-glm(shot.outcome.name~ . ,data=shots_complet,family=binomial(link="logit"))
+summary(glm.model_complet)
+```
+
+
+```{r}
+#On fait un modèle avec comme variable l'expected goal déjà donné
+df_model_2 <- select(shots,shot.statsbomb_xg,shot.outcome.name)
+df_model_2$shot.outcome.name <- ifelse(df_model_2$shot.outcome.name == "Goal", 1, 0)
+
+glm.model_2<-glm(shot.outcome.name~ . ,data=df_model_2,family=binomial(link="logit"))
+summary(glm.model_2)
+print(1-(glm.model_2$deviance/glm.model_2$null.deviance))
+
+```
+```{r}
+#On refait  le même modèle logistique mais avec la position en plus
+
+df_model_3 <- select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.y)
+df_model_3$shot.outcome.name <- ifelse(df_model_3$shot.outcome.name == "Goal", 1, 0)
+
+
+```
+```{r}
+#On teste une regression sans intéraction
+glm.model_3<-glm(shot.outcome.name~ . ,data=df_model_3,family=binomial(link="logit"))
+summary(glm.model_3)
+```
+```{r}
+print(1-(glm.model_3$deviance/glm.model_3$null.deviance))
+
+```
+```{r}
+#On teste une regression avec intéraction
+glm.model_3_interac<-glm(shot.outcome.name~ .^2 ,data=df_model_3,family=binomial(link="logit"))
+summary(glm.model_3_interac)
+print(1-(glm.model_3_interac$deviance/glm.model_3_interac$null.deviance))
+
+#Avec intéractions on a ciblé les principales variables pour obtenir un bon modèle et le R^2 le plus proche de 1 possible
+
+```
+```{r}
+
+#On fait plusieurs tests pour voir quelles variables sont significatives dans le modèle et on voit qu'on peut enlever la technique
+model_simp<-glm(shot.outcome.name~ (location.x +location.y + shot.body_part.name+shot.type.name)^2 ,data=df_model_3,family=binomial(link="logit"))
+anova(model_simp,glm.model_3_interac,test="Chisq")
+
+
+```
+```{r}
+summary(model_simp)
+print(1-(model_simp$deviance/model_simp$null.deviance))
+
+#Le R^2 est pas plus grand que pour le modele 3 avec intéractions : normal car le R^2 favorise les modèles avec bcp de variables
+#Il faudrait regarder d'autres variables comme l'AIC, qui au minimum est pour le modèle 3 sans intéractions 
+
+```
+```{r}
+#On va comparer les fitted values (Pi_chapeau): proba d'être un but, avec les expected goals
+glm.model_3$fitted.values
+#on a bien des nb entre 0 et 1
+
+```
+
+```{r}
+#On cherche à comparer le modèle 3 avec et sans intéraction : la norme 2 doit être proche de 0 :
+
+library(matrixStats)
+
+# Afficher la norme L2 modèle 3
+norme_L2_mod3 <- norm(glm.model_3$fitted.values - shots$shot.statsbomb_xg, type = "2")
+print(norme_L2_mod3)
+
+# Afficher la norme L2 modèle 3 avec intéractions : 
+norme_L2_mod3avecinterac <- norm(glm.model_3_interac$fitted.values - shots$shot.statsbomb_xg, type = "2")
+print(norme_L2_mod3avecinterac)
+
+
+#On retrouve ce que disait l'AIC, évalue mieux que le R^2 : modèle 3 sans intéraction est le meilleur
+```
+```{r}
+#On cherche à comparer le modèle 1 avec et sans intéraction : la norme 2 doit être proche de 0 :
+
+
+# Afficher la norme L2 modèle 1
+norme_L2_mod1 <- norm(glm.model_1$fitted.values - shots$shot.statsbomb_xg, type = "2")
+print(norme_L2_mod1)
+
+# Afficher la norme L2 modèle 1 avec intéractions : 
+norme_L2_mod1avecinterac <- norm(glm.model_1_interac$fitted.values - shots$shot.statsbomb_xg, type = "2")
+print(norme_L2_mod1avecinterac)
+
+
+#Les deux modèles sont moins bien que le 3
+
+```
+
