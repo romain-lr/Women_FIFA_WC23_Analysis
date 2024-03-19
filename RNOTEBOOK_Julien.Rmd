@@ -1,0 +1,478 @@
+```{r}
+library(StatsBombR)
+library(bupaR)
+library(bupaverse)
+library(eventdataR)
+library(lubridate)
+library(tidyverse)
+library(processanimateR)
+library(processmonitR)
+library(extrafont)
+library(lattice)
+```
+
+```{r}
+create_Pitch <- function(grass_colour = "#F9F9F9", line_colour = "#8F8F8F", background_colour = "#F9F9F9", goal_colour = "#000000", goaltype = "line", middlethird = FALSE, BasicFeatures = FALSE, JdeP = FALSE, arcs = TRUE, padding = 5){
+
+  library(ggplot2)
+  ## set theme for blank pitch
+  theme_blankPitch = function(size=12) {
+    theme(
+      #axis.line=element_blank(),
+      axis.text.x=element_blank(),
+      axis.text.y=element_blank(),
+      #axis.ticks.y=element_text(size=size),
+      #   axis.ticks=element_blank(),
+      axis.ticks.length=unit(0, "lines"),
+      #axis.ticks.margin=unit(0, "lines"),
+      axis.title.x=element_blank(),
+      axis.title.y=element_blank(),
+      legend.background=element_rect(fill=background_colour, colour=NA),
+      legend.key=element_rect(colour=background_colour,fill=background_colour),
+      legend.key.size=unit(1.2, "lines"),
+      legend.text=element_text(size=size),
+      legend.title=element_text(size=size, face="bold",hjust=0),
+      strip.background = element_rect(colour = background_colour, fill = background_colour, linewidth = .5),
+      panel.background=element_rect(fill=background_colour,colour=background_colour),
+      #       panel.border=element_blank(),
+      panel.grid.major=element_blank(),
+      panel.grid.minor=element_blank(),
+      panel.spacing=element_blank(),
+      plot.background=element_blank(),
+      plot.margin=unit(c(0, 0, 0, 0), "lines"),
+      plot.title=element_text(size=size*1.2),
+      strip.text.y=element_text(colour=background_colour,size=size,angle=270),
+      strip.text.x=element_text(size=size*1))}
+
+  ymin <- 0 # minimum width
+  ymax <- 80 # maximum width
+  xmin <- 0 # minimum length
+  xmax <- 120 # maximum length
+
+  # Defining features along the length
+  boxEdgeDef <- 18
+  boxEdgeOff <- 102
+  halfwayline <- 60
+  sixYardDef <- 6
+  sixYardOff <- 114
+  penSpotDef <- 12
+  penSpotOff <- 108
+
+  # Defining features along the width
+  boxEdgeLeft <- 18
+  boxEdgeRight <- 62
+  sixYardLeft <- 30
+  sixYardRight <- 50
+  goalPostLeft <- 36
+  goalPostRight <- 44
+  CentreSpot <- 40
+
+  # other dimensions
+  centreCirle_d <- 20
+
+  ## define the circle function
+  circleFun <- function(center = c(0,0),diameter = 1, npoints = 100){
+    r = diameter / 2
+    tt <- seq(0,2*pi,length.out = npoints)
+    xx <- center[1] + r * cos(tt)
+    yy <- center[2] + r * sin(tt)
+    return(data.frame(x = xx, y = yy))
+  }
+
+  #### create center circle ####
+  center_circle <- circleFun(c(halfwayline,CentreSpot),centreCirle_d,npoints = 100)
+
+  ### FIRST STAGE
+  ## initiate the plot, set some boundries to the plot
+  p <- ggplot() + xlim(c(xmin-padding,xmax+padding)) + ylim(c(ymin-padding,ymax+padding)) +
+  # add the theme
+  theme_blankPitch()
+
+  ### ADD MIDDLE THIRD SHADING
+  if(middlethird == TRUE){
+  p <- p + geom_rect(aes(xmin=(xmax/3*1), xmax=(xmax/3*2), ymin=ymin, ymax=ymax), colour = NA, fill = "black", alpha = 0.10)
+  }else{}
+
+  if(BasicFeatures == TRUE){
+  p <- p +
+  # add the base rectangle of the pitch
+  geom_rect(aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax), fill = NA, colour = line_colour) +
+  # add the 18 yard box defensive
+  geom_rect(aes(xmin=xmin, xmax=boxEdgeDef, ymin=boxEdgeLeft, ymax=boxEdgeRight), fill = grass_colour, colour = line_colour) +
+  # add the 18 yard box offensive
+  geom_rect(aes(xmin=boxEdgeOff, xmax=xmax, ymin=boxEdgeLeft, ymax=boxEdgeRight), fill = grass_colour, colour = line_colour) +
+  # add halway line
+  geom_segment(aes(x = halfwayline, y = ymin, xend = halfwayline, yend = ymax),colour = line_colour)
+  arcs = FALSE
+  }else{
+        ## initiate the plot, set some boundries to the plot
+  p <- p +
+  # add the base rectangle of the pitch
+  geom_rect(aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax), fill = NA, colour = line_colour) +
+  # add the 18 yard box defensive
+  geom_rect(aes(xmin=xmin, xmax=boxEdgeDef, ymin=boxEdgeLeft, ymax=boxEdgeRight), fill = grass_colour, colour = line_colour) +
+  # add the 18 yard box offensive
+  geom_rect(aes(xmin=boxEdgeOff, xmax=xmax, ymin=boxEdgeLeft, ymax=boxEdgeRight), fill = grass_colour, colour = line_colour) +
+  # add halway line
+  geom_segment(aes(x = halfwayline, y = ymin, xend = halfwayline, yend = ymax),colour = line_colour) +
+  # add the six yard box Defensive
+  geom_rect(aes(xmin=xmin, xmax=sixYardDef, ymin=sixYardLeft, ymax=sixYardRight), fill = grass_colour, colour = line_colour)  +
+  # add the six yard box offensive
+  geom_rect(aes(xmin=sixYardOff, xmax=xmax, ymin=sixYardLeft, ymax=sixYardRight), fill = grass_colour, colour = line_colour) +
+  # add centre circle
+  geom_path(data=center_circle, aes(x=x,y=y), colour = line_colour) +
+    # add penalty spot left
+  geom_point(aes(x = penSpotDef , y = CentreSpot), colour = line_colour, size = 0.75) +
+  # add penalty spot right
+  geom_point(aes(x = penSpotOff , y = CentreSpot), colour = line_colour, size = 0.75) +
+  # add centre spot
+  geom_point(aes(x = halfwayline , y = CentreSpot), colour = line_colour, size = 0.75) }
+  
+  #### add goals depending on type
+
+  ## LINE TYPE
+  if(goaltype == "line"){
+  p <- p +
+  # add the goal Defensive
+  geom_segment(aes(x = xmin, y = goalPostLeft, xend = xmin, yend = goalPostRight),colour = goal_colour, size = 1) +
+  # add the goal offensive
+  geom_segment(aes(x = xmax, y = goalPostLeft, xend = xmax, yend = goalPostRight),colour = goal_colour, size = 1)
+
+  }else{}
+
+  ## Barca Numbers TYPE
+  if(goaltype == "barcanumbers"){
+  p <- p +
+  # add the goal Defensive
+  geom_segment(aes(x = xmin - 0.75, y = goalPostLeft, xend = xmin - 0.75, yend = goalPostRight),colour = line_colour, size = 0.75) +
+  # add the goal offensive
+  geom_segment(aes(x = xmax + 0.75, y = goalPostLeft, xend = xmax + 0.75, yend = goalPostRight),colour = line_colour, size = 0.75)
+
+  }else{}
+
+  ## BOX TYPE
+  if(goaltype == "box"){
+  p <- p +
+  # add the goal Defensive
+  geom_rect(aes(xmin = xmin - 2 , ymin = goalPostLeft, xmax = xmin, ymax = goalPostRight), fill = grass_colour, colour = line_colour) +
+  # add the goal offensive
+  geom_rect(aes(xmin = xmax, ymin = goalPostLeft, xmax = xmax + 2, ymax = goalPostRight), fill = grass_colour, colour = line_colour)
+  }else{}
+
+
+  ## add J de P
+  if(JdeP == TRUE){
+  p <- p +
+  # vertical tram lines
+  geom_segment(aes(x = boxEdgeDef, y = boxEdgeLeft, xend = boxEdgeOff, yend = boxEdgeLeft), colour = "#941C07", alpha = 0.3) +
+  geom_segment(aes(x = boxEdgeDef, y = boxEdgeRight, xend = boxEdgeOff, yend = boxEdgeRight), colour = "#941C07", alpha = 0.3) +
+  geom_segment(aes(x = boxEdgeDef, y = CentreSpot - 10, xend = boxEdgeOff, yend = CentreSpot - 10), colour = "#941C07", alpha = 0.3) +
+  geom_segment(aes(x = boxEdgeDef, y = CentreSpot + 10, xend = boxEdgeOff, yend = CentreSpot + 10), colour = "#941C07", alpha = 0.3) +
+  # horizontal tram lines
+  geom_segment(aes(x = boxEdgeDef, y = ymin, xend = boxEdgeDef, yend = ymax), colour = "#941C07", alpha = 0.3) +
+  geom_segment(aes(x = boxEdgeOff, y = ymin, xend = boxEdgeOff, yend = ymax), colour = "#941C07", alpha = 0.3) +
+  geom_segment(aes(x = (xmax/3*1), y = boxEdgeRight, xend = (xmax/3*1), yend = ymax), colour = "#941C07", alpha = 0.3) +
+  geom_segment(aes(x = (xmax/3*1), y = boxEdgeLeft, xend = (xmax/3*1), yend = ymin), colour = "#941C07", alpha = 0.3) +
+  geom_segment(aes(x = (xmax/3*2), y = boxEdgeRight, xend = (xmax/3*2), yend = ymax), colour = "#941C07", alpha = 0.3) +
+  geom_segment(aes(x = (xmax/3*2), y = boxEdgeLeft, xend = (xmax/3*2), yend = ymin), colour = "#941C07", alpha = 0.3)
+  # add the 18 yard box defensive
+  #geom_rect(aes(xmin=xmin, xmax=boxEdgeDef, ymin=boxEdgeLeft, ymax=boxEdgeRight), fill = NA, colour = line_colour) +
+  # add the 18 yard box offensive
+  #geom_rect(aes(xmin=boxEdgeOff, xmax=xmax, ymin=boxEdgeLeft, ymax=boxEdgeRight), fill = NA, colour = line_colour)
+  }else{}
+
+  ## add J de P
+  if(arcs == TRUE){
+  p <- p +
+  # vertical tram lines
+  annotate("path",
+           x = 12 + 10 * cos(seq(-0.3*pi, 0.3*pi, length.out = 30)),
+           y = 40 + 10 * sin(seq(-0.3*pi, 0.3*pi, length.out = 30)),
+           col = line_colour) +
+  annotate("path",
+           x = (120-12) - 10 * cos(seq(-0.3*pi, 0.3*pi, length.out = 30)),
+           y = 40 + 10 * sin(seq(-0.3*pi, 0.3*pi, length.out = 30)),
+           col = line_colour)
+  }else{}
+
+  return(p)
+
+}
+```
+
+```{r}
+Every_Single_Event <- allclean(free_allevents(AllMatches))
+```
+
+
+```{r}
+AllCompet <- FreeCompetitions() %>% filter(competition_name=="Women's World Cup" & season_name=="2023")
+AllMatches <- FreeMatches(AllCompet)
+AllEvents <- allclean(free_allevents(AllMatches) %>% filter(team.name=="France Women's"))
+#view(AllEvents)
+```
+
+
+```{r}
+# On isole les tirs de la France 
+
+Shots_France <- AllEvents %>% filter(type.name=="Shot")
+Efficacité <- count(Shots_France, shot.outcome.name=="Goal")[2,2]/count(Shots_France)
+print(paste("L'efficacité au tir de la France est de", round(Efficacité*100,2), "%"))
+```
+
+```{r}
+#On isole les passes de la France 
+Passes_France <- AllEvents %>% filter(type.name=="Pass")
+#View(Passes_France)
+Efficacité_Pass <- count(Passes_France, pass.outcome.name=="NA")[2,2]/count(Passes_France)
+print(paste("L'efficacité des passes de la France est de", round(Efficacité_Pass*100,2), "%"))
+```
+
+
+```{r}
+Passes_All <- free_allevents(AllMatches) %>% filter(type.name=="Pass")
+Passes_Cleaned <- cleanlocations(Passes_All)
+# View(Passes_Cleaned)
+```
+
+```{r}
+#Séparons les passes en 3 catégories : l< 15m, 15m<l<25m, 25m<l<50m, l>50m
+Passes <- c(Passes_France %>% filter(pass.length<=15),
+            Passes_France %>% filter(between(pass.length,15,25)),
+            Passes_France %>% filter(between(pass.length,25,50)),
+            Passes_France %>% filter(pass.length>=50))
+
+Efficacité_Passes <- as.numeric(c(count(Passes_France_1, pass.outcome.name=="NA")[2,2]/count(Passes_France_1) * 100,
+                                  count(Passes_France_2, pass.outcome.name=="NA")[2,2]/count(Passes_France_2) * 100,
+                                  count(Passes_France_3, pass.outcome.name=="NA")[2,2]/count(Passes_France_3) * 100,
+                                  count(Passes_France_4, pass.outcome.name=="NA")[2,2]/count(Passes_France_4) * 100))
+
+print(paste("L'efficacité des passes plus courtes que 15 mètres est de", round(Efficacité_Passes[1],2), "%"))
+print(paste("L'efficacité des passes de longueur comprise entre 15 et 25 mètres est de", round(Efficacité_Passes[2],2), "%"))
+print(paste("L'efficacité des passes de longueur comprise entre 25 et 50 mètres est de", round(Efficacité_Passes[3],2), "%"))
+print(paste("L'efficacité des passes plus longues que 50 mètres est de", round(Efficacité_Passes[4],2), "%"))
+
+Efficacité_Tab <- c("Pass_<15"=as.numeric(Efficacité_Passes[1]),
+                    "Pass_15<x<25"=as.numeric(Efficacité_Passes[2]),
+                    "Pass_25<x<50"=as.numeric(Efficacité_Passes[3]) ,
+                    "Pass_>50"=as.numeric(Efficacité_Passes[4]))
+
+barplot(height = Efficacité_Tab, names=names(Efficacité_Tab),col = 'maroon')
+```
+
+```{r}
+# Let's try to predict whether a pass will be completed or not.
+# We will be looking at several different parameters for this model : the length, the angle, and whether a pass is under pressure or not. We also added the seconds, to verify the relevance of the results.
+
+df <- data.frame(Passes_Cleaned['pass.length'],Passes_Cleaned['pass.angle'],Passes_Cleaned['pass.outcome.name'], Passes_Cleaned['under_pressure'], Passes_Cleaned['second'], Passes_Cleaned['location.x'], Passes_Cleaned['location.y'])
+
+#Let's transform the data using the mutate() and case_when() functions. Also, we are renaming some of the attributes to clearer names.
+
+df <- df  %>%  mutate(length = pass.length,
+                      angle = pass.angle,
+                      outcome = case_when(is.na(pass.outcome.name) ~ 1,
+                                         !is.na(pass.outcome.name) ~ 0),
+                      under_pressure = case_when(is.na(under_pressure) ~ 0,
+                                                !is.na(under_pressure) ~ 1))
+
+#Transformer la variable angle
+
+# Removing unnecessary columns
+
+df <- subset(df, select = -c(pass.length, pass.angle, pass.outcome.name))
+#view(df)
+
+# Setting up the model
+
+m1 <- glm(outcome ~ length*angle*under_pressure*second + location.x + location.y, data=df)
+
+# Removing unnecessary parameters from the model
+
+mBIC <- step(m1, backward=TRUE, k=log(nrow(df)))
+summary(mBIC)
+```
+
+
+```{r}
+# There seems to be some non-linear dependencies within the model, as our barplot suggested.
+
+df <- df %>% mutate(length_sq = length**2)
+
+df <- df %>% mutate(distance_to_center = case_when(location.y >40 ~ location.y-40,
+                                                   location.y<=40 ~ -(location.y-40)))
+
+df <- subset(df, select = -c(second, location.y))
+
+
+mtest <- glm(outcome ~ location.x*distance_to_center*length + angle*location.x + angle*distance_to_center + length*angle*under_pressure*length_sq - length:length_sq - length:under_pressure:length_sq, data=df)
+summary(mtest)
+
+mfinal <- step(mtest, backward=TRUE, k=log(nrow(df)))
+summary(mfinal)
+
+# Piste de Sébastien : Modèle de xP, xG, comparer résultat de regression logistique à un modèle de machine learning (SVM, Random forest, ...)
+
+```
+
+
+```{r}
+# Let's try to predict whether a pass will be completed or not.
+# We will be looking at several different parameters for this model : the length, the angle, and whether a pass is under pressure or not. We also added the seconds, to verify the relevance of the results.
+
+df <- data.frame(Passes_France['pass.length'],Passes_France['pass.angle'],Passes_France['pass.outcome.name'], Passes_France['under_pressure'], Passes_France['second'], Passes_France['location.x'], Passes_France['location.y'])
+
+#Let's transform the data using the mutate() and case_when() functions. Also, we are renaming some of the attributes to clearer names.
+
+df <- df  %>%  mutate(length = pass.length,
+                      angle = pass.angle,
+                      outcome = case_when(is.na(pass.outcome.name) ~ 1,
+                                         !is.na(pass.outcome.name) ~ 0),
+                      under_pressure = case_when(is.na(under_pressure) ~ 0,
+                                                !is.na(under_pressure) ~ 1))
+
+#Transformer la variable angle
+
+# Removing unnecessary columns
+
+df <- subset(df, select = -c(pass.length, pass.angle, pass.outcome.name))
+#view(df)
+
+# Setting up the model
+
+m1 <- glm(outcome ~ length*angle*under_pressure*second + location.x + location.y, data=df)
+
+# Removing unnecessary parameters from the model
+
+mBIC <- step(m1, backward=TRUE, k=log(nrow(df)))
+summary(mBIC)
+
+# The BIC step procedure removed the "second" (this one is no surprise...) and "angle" parameters from the model.
+```
+
+
+```{r}
+R2 = 1 - 465.61/507.53
+print(R2)
+# R2 = 0.0825961, not very good by any means (with passes from France only, R2 = 0.07331737 with every pass from WC2023F)
+```
+
+```{r}
+#The location.y parameter was not considered relevant enough for the model. Adding the distance to center, as the location.y attribute should have a symmetrical impact along the halfline (the ones passing through the goalposts) from a strategical standpoint. 
+
+df <- df %>% mutate(distance_to_center = case_when(location.y >40 ~ location.y-40,
+                                                   location.y<=40 ~ -(location.y-40)))
+
+df <- subset(df, select = -c(second, location.y))
+
+#view(df)
+```
+
+
+
+```{r}
+# There seems to be some non-linear dependencies within the model, as our barplot suggested.
+
+df <- df %>% mutate(length_sq = length**2)
+
+mtest <- glm(outcome ~ location.x*distance_to_center*length + angle * location.x + angle * distance_to_center + length*angle*under_pressure*length_sq - length:length_sq - length:under_pressure:length_sq, data=df)
+summary(mtest)
+
+mfinal <- step(mtest, backward=TRUE, k=log(nrow(df)))
+summary(mfinal)
+
+# Piste de Sébastien : Modèle de xP, xG, comparer résultat de regression logistique à un modèle de machine learning (SVM, Random forest, ...)
+```
+
+```{r}
+R2 <- 1 - 421.78/507.53
+print(R2)
+```
+
+
+```{r}
+Shots_All <- free_allevents(AllMatches) %>% filter(type.name=="Shot")
+```
+
+```{r}
+Shots_Cleaned <- allclean(Shots_All)
+```
+
+
+```{r}
+#view(Shots_Cleaned)
+# Let's try to predict whether a pass will be completed or not.
+# We will be looking at several different parameters for this model : the length, the angle, and whether a pass is under pressure or not. We also added the seconds, to verify the relevance of the results.
+
+df <- data.frame(Shots_Cleaned["shot.outcome.name"], Shots_Cleaned["shot.statsbomb_xg"])
+
+# Let's transform the data using the mutate() and case_when() functions. Also, we are renaming some of the attributes to clearer names.
+
+df <- df  %>%  mutate(xg = shot.statsbomb_xg,
+                      outcome = case_when((shot.outcome.name == "Goal") ~ 1,
+                                          (shot.outcome.name != "Goal") ~ 0))
+
+# Transformer la variable angle
+
+# Removing unnecessary columns
+
+df <- subset(df, select = -c(shot.statsbomb_xg, shot.outcome.name))
+view(df)
+
+# Setting up the model
+
+m1 <- glm(outcome ~ xg,data=df,family=binomial(link="logit"))
+
+# Removing unnecessary parameters from the model
+
+mBIC <- step(m1, backward=TRUE, k=log(nrow(df)))
+summary(m1)
+```
+
+```{r}
+R2 = 1-(m1$deviance/m1$null.deviance)
+print(R2)
+```
+
+```{r}
+hatY = (m1$fitted.values > 0.5)
+table(df$outcome, hatY)
+
+pihat = predict(m1, type = "response")
+df1 = data.frame(xg = df$xg, 
+                  pihat = pihat, 
+                  Yihat = as.numeric(pihat > 0.5),
+                  Yi = as.numeric(df$outcome))
+
+ggplot(df1) +
+  geom_point(aes(x=xg,y=Yihat), col="blue") +
+  geom_smooth(aes(x=xg,y=pihat), col="black") +
+  geom_point(aes(x=xg,y=Yi), col="red", shape=0) +
+  xlab("xG") + ylab("pi / Yhat / Y")   
+```
+
+
+```{r}
+Shots_Cleaned <- allclean(Shots_All)
+
+df <- data.frame(Shots_Cleaned["shot.outcome.name"], Shots_Cleaned["shot.statsbomb_xg"], Shots_Cleaned["location.x.GK"],Shots_Cleaned["location.y.GK"], Shots_Cleaned["location.x"], Shots_Cleaned["location.y"] ,Shots_Cleaned["under_pressure"])
+
+# Let's transform the data using the mutate() and case_when() functions. Also, we are renaming some of the attributes to clearer names.
+
+df <- df  %>%  mutate(xg = shot.statsbomb_xg,
+                      outcome = case_when((shot.outcome.name == "Goal") ~ 1,
+                                          (shot.outcome.name != "Goal") ~ 0),
+                      distance_to_center = case_when(location.y >40 ~ location.y-40,
+                                                   location.y<=40 ~ -(location.y-40)),
+                      under_pressure = case_when(is.na(under_pressure) ~ 0,
+                                                !is.na(under_pressure) ~ 1))
+
+m1 <- glm(outcome ~ location.x + location.y * location.x.GK * location.y.GK + under_pressure,data=df)
+
+summary(m1)
+```
+
+```{r}
+R2 = 1 - m1$deviance/m1$null.deviance
+print(R2)
+```
