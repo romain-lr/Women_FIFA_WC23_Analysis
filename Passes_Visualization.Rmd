@@ -25,7 +25,7 @@ Passes_All <- Passes_All  %>%  mutate(player = player.name,
                                       team = gsub(" Women's","",team.name),
                                       .keep="unused")
 
-View(Passes_All)
+#View(Passes_All)
 ```
 
 #Player-by-player visualization
@@ -116,7 +116,9 @@ for (i in 0:length(pays))
 
 df <- subset(df, select = -c(player))
 
-dftail <- df[(nrow(df)-(n-1)):nrow(df),]
+n <- length(pays)
+
+dftail <- df[(nrow(df)-(n - 1)):nrow(df),]
 
 #view(dftail)
 
