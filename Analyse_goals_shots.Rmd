@@ -12,6 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(StatsBombR)
 library(extrafont)
+library(MASS)
 ```
 
 ```{r}
@@ -337,6 +338,21 @@ df_model_1$shot.outcome.name <- ifelse(df_model_1$shot.outcome.name == "Goal", 1
 glm.model_1<-glm(shot.outcome.name~ . ,data=df_model_1,family=binomial(link="logit"))
 summary(glm.model_1)
 ```
+On voit un shot.type.namePenalty faussé car la modalité corner est prise en référence et vu qu'il n'y a pas eu de tirs ni du but durant la compet, le modèle considère 100% de réussite pour la modalité corner.
+
+```{r}
+
+
+#On change la modalité de référence de "corner" à "penalty"
+df_model_1_modif=df_model_1
+df_model_1_modif$shot.type.name <- relevel(as_factor(df_model_1_modif$shot.type.name), ref = "Penalty")
+
+glm.model_1_modif <- glm(shot.outcome.name ~ . , data = df_model_1_modif, family = binomial(link = "logit"))
+summary(glm.model_1_modif)
+
+```
+On voit que Open Play et Free Kick ont moins de chance de se transformer en but par rapport au pénalty. Le corner reste faussé
+
 ```{r}
 #Calcul du R2:
 print(1-(glm.model_1$deviance/glm.model_1$null.deviance))
@@ -464,4 +480,136 @@ print(norme_L2_mod1avecinterac)
 #Les deux modèles sont moins bien que le 3
 
 ```
+
+```{r}
+
+
+df_model_4 <- select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.y,under_pressure)
+df_model_4$shot.outcome.name <- ifelse(df_model_4$shot.outcome.name == "Goal", 1, 0)
+
+#On remplace les NA par "false" dans la colonne under_pressure
+df_model_4$under_pressure <- ifelse(is.na(df_model_4$under_pressure), FALSE, df_model_4$under_pressure)
+
+#On teste le modèle avec seulement la variable under_pressure
+glm.model_4 <- glm(shot.outcome.name ~ under_pressure, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4)
+```
+pval<0.05 donc on rejette H0 : le fait de jouer sous pression est significatif
+Estimation des coeffs négatif donc le fait de jouer sous pression diminue la proba de marquer 
+
+
+```{r}
+#On teste le modèle avec seulement la variable shot.body_part.name
+
+glm.model_4_bodypart <- glm(shot.outcome.name ~ shot.body_part.name, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4_bodypart)
+```
+La proba de marquer de la tête est moins forte que pour les autres parties du corps
+
+```{r}
+#On teste le modèle avec seulement la variable shot.technique.name
+
+glm.model_4_technique <- glm(shot.outcome.name ~ shot.technique.name, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4_technique)
+```
+Reférence : backheel (tallonade) : toutes les autres techniques sont mieux, on a bcp de valeurs proches de 1, on pourrait faire un sous modèle constant pour voir si cette variable est significative
+```{r}
+model_constant= glm(shot.outcome.name ~ 1, data = df_model_4, family = binomial(link = "logit"))
+anova(model_constant,glm.model_4_technique,test="Chisq")
+```
+On rejette H0, la variable technique est significative
+
+```{r}
+#On teste le modèle avec seulement la variable shot.type.name
+
+glm.model_4_type <- glm(shot.outcome.name ~ shot.type.name, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4_type)
+
+```
+
+```{r}
+#On peut également faire un test de sous modèle
+anova(model_constant,glm.model_4_type,test="Chisq")
+```
+
+La variable type.name est significative, on rejette H0
+```{r}
+#On teste le modèle avec seulement la variable location.x
+
+glm.model_4_loc_x <- glm(shot.outcome.name ~ location.x, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4_loc_x)
+```
+On voit des pval<0.05 donc location.x est très significative
+
+
+
+
+```{r}
+#On teste mtn avec toutes les variables du modèle 4+under_pressure
+glm.model_5 <- glm(shot.outcome.name ~ ., data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_5)
+
+print(1-(glm.model_5$deviance/glm.model_5$null.deviance))
+```
+On a un R**2 bien=0.20 mais normal car modèle avec bcp de variables
+AIC bien =954.37 
+
+
+```{r}
+#On créé un nouveau df avec toutes les variables précédentes + position du gardien
+df_model_6 <- select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.y,under_pressure,location.x.GK,location.y.GK)
+df_model_6$shot.outcome.name <- ifelse(df_model_6$shot.outcome.name == "Goal", 1, 0)
+
+#On remplace les NA par "false" dans la colonne under_pressure
+df_model_6$under_pressure <- ifelse(is.na(df_model_6$under_pressure), FALSE, df_model_6$under_pressure)
+
+#On teste le modèle avec seulement la variable location.x.GK
+glm.model_6_location.x.GK <- glm(shot.outcome.name ~ location.x.GK, data = df_model_6, family = binomial(link = "logit"))
+summary(glm.model_6_location.x.GK)
+print(1-(glm.model_6_location.x.GK$deviance/glm.model_6_location.x.GK$null.deviance))
+```
+On a un effet significatif de la position du goal en x, AIC très bas 
+
+```{r}
+#On teste le modèle avec seulement la variable location.y.GK
+glm.model_6_location.y.GK <- glm(shot.outcome.name ~ location.y.GK, data = df_model_6, family = binomial(link = "logit"))
+summary(glm.model_6_location.y.GK)
+
+print(1-(glm.model_6_location.y.GK$deviance/glm.model_6_location.y.GK$null.deviance))
+```
+Variable de la position du gardien en y significative, AIC un peu plus élevé que pour position en x
+
+```{r}
+#On teste le modèle avec toutes les varaibles du df6 sans intéraction
+glm.model_6 <- glm(shot.outcome.name ~ ., data = df_model_6, family = binomial(link = "logit"))
+summary(glm.model_6)
+
+print(1-(glm.model_6$deviance/glm.model_6$null.deviance))
+
+```
+AIC très faible, modèle bien
+
+```{r}
+#On créé un nouveau df sans location.y
+df_model_7 <- select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,under_pressure,location.x.GK,location.y.GK)
+df_model_7$shot.outcome.name <- ifelse(df_model_7$shot.outcome.name == "Goal", 1, 0)
+
+#On remplace les NA par "false" dans la colonne under_pressure
+df_model_7$under_pressure <- ifelse(is.na(df_model_7$under_pressure), FALSE, df_model_7$under_pressure)
+
+#On teste le modèle avec toutes les variables
+glm.model_7 <- glm(shot.outcome.name ~ ., data = df_model_7, family = binomial(link = "logit"))
+summary(glm.model_7)
+print(1-(glm.model_7$deviance/glm.model_7$null.deviance))
+
+```
+On peut donc enlever la variable location.y
+AIC très faible -> Meilleur modèle pour l'instant
+
+```{r}
+#On cherche quel est le meilleur modèle (qui minimise l'AIC)
+stepAIC(glm.model_6, trace=FALSE)
+```
+On voit que les positions en y ne servent à rien, seules celles en x sont significatives, ainsi que la partie du corps et la technique utilisée
+-> Meilleur modèle 
 
