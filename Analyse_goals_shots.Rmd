@@ -9,6 +9,8 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
+library(dplyr)
+library(bupaR)
 library(tidyverse)
 library(StatsBombR)
 library(extrafont)
@@ -333,6 +335,7 @@ df_model_1$shot.outcome.name <- ifelse(df_model_1$shot.outcome.name == "Goal", 1
 
 
 ```
+
 ```{r}
 #On teste une regression sans intéraction
 glm.model_1<-glm(shot.outcome.name~ . ,data=df_model_1,family=binomial(link="logit"))
@@ -360,12 +363,13 @@ print(1-(glm.model_1$deviance/glm.model_1$null.deviance))
 ```
 ```{r}
 
-#On teste une regression avec intéraction
+#On teste une regression avec interaction
 glm.model_1_interac<-glm(shot.outcome.name~ .^2 ,data=df_model_1,family=binomial(link="logit"))
 summary(glm.model_1_interac)
 
 #Beaucoup de NA car certaines intéractions impossible (ex : reprise de volley sur un pénalty)
 ```
+
 ```{r}
 #Calcul du R2:
 print(1-(glm.model_1_interac$deviance/glm.model_1_interac$null.deviance))
@@ -399,6 +403,7 @@ summary(glm.model_2)
 print(1-(glm.model_2$deviance/glm.model_2$null.deviance))
 
 ```
+
 ```{r}
 #On refait  le même modèle logistique mais avec la position en plus
 
@@ -407,15 +412,17 @@ df_model_3$shot.outcome.name <- ifelse(df_model_3$shot.outcome.name == "Goal", 1
 
 
 ```
+
 ```{r}
 #On teste une regression sans intéraction
 glm.model_3<-glm(shot.outcome.name~ . ,data=df_model_3,family=binomial(link="logit"))
 summary(glm.model_3)
 ```
+
 ```{r}
 print(1-(glm.model_3$deviance/glm.model_3$null.deviance))
-
 ```
+
 ```{r}
 #On teste une regression avec intéraction
 glm.model_3_interac<-glm(shot.outcome.name~ .^2 ,data=df_model_3,family=binomial(link="logit"))
@@ -425,6 +432,7 @@ print(1-(glm.model_3_interac$deviance/glm.model_3_interac$null.deviance))
 #Avec intéractions on a ciblé les principales variables pour obtenir un bon modèle et le R^2 le plus proche de 1 possible
 
 ```
+
 ```{r}
 
 #On fait plusieurs tests pour voir quelles variables sont significatives dans le modèle et on voit qu'on peut enlever la technique
@@ -441,6 +449,7 @@ print(1-(model_simp$deviance/model_simp$null.deviance))
 #Il faudrait regarder d'autres variables comme l'AIC, qui au minimum est pour le modèle 3 sans intéractions 
 
 ```
+
 ```{r}
 #On va comparer les fitted values (Pi_chapeau): proba d'être un but, avec les expected goals
 glm.model_3$fitted.values
@@ -512,6 +521,7 @@ La proba de marquer de la tête est moins forte que pour les autres parties du c
 glm.model_4_technique <- glm(shot.outcome.name ~ shot.technique.name, data = df_model_4, family = binomial(link = "logit"))
 summary(glm.model_4_technique)
 ```
+
 Reférence : backheel (tallonade) : toutes les autres techniques sont mieux, on a bcp de valeurs proches de 1, on pourrait faire un sous modèle constant pour voir si cette variable est significative
 ```{r}
 model_constant= glm(shot.outcome.name ~ 1, data = df_model_4, family = binomial(link = "logit"))
@@ -579,10 +589,26 @@ print(1-(glm.model_6_location.y.GK$deviance/glm.model_6_location.y.GK$null.devia
 ```
 Variable de la position du gardien en y significative, AIC un peu plus élevé que pour position en x
 
+Replacing the location.y.GK and location.y variables by their distance_to_center homologues.
+
+```{r}
+df_model_6 <- df_model_6 %>% mutate(distance_to_center.GK = case_when(location.y.GK >40 ~ location.y.GK-40,
+                                                                      location.y.GK<=40 ~ -(location.y.GK-40)),
+                                    distance_to_center = case_when(location.y >40 ~ location.y-40,
+                                                                      location.y<=40 ~ -(location.y-40)))
+
+glm.model_6_location.y.GK <- glm(shot.outcome.name ~ distance_to_center.GK, data = df_model_6, family = binomial(link = "logit"))
+summary(glm.model_6_location.y.GK)
+
+print(1-(glm.model_6_location.y.GK$deviance/glm.model_6_location.y.GK$null.deviance))
+```
+
+
 ```{r}
 #On teste le modèle avec toutes les varaibles du df6 sans intéraction
 glm.model_6 <- glm(shot.outcome.name ~ ., data = df_model_6, family = binomial(link = "logit"))
 summary(glm.model_6)
+
 
 print(1-(glm.model_6$deviance/glm.model_6$null.deviance))
 
@@ -591,11 +617,16 @@ AIC très faible, modèle bien
 
 ```{r}
 #On créé un nouveau df sans location.y
-df_model_7 <- select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,under_pressure,location.x.GK,location.y.GK)
+df_model_7 <- select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,under_pressure,location.x.GK,location.y.GK, location.y)
 df_model_7$shot.outcome.name <- ifelse(df_model_7$shot.outcome.name == "Goal", 1, 0)
 
 #On remplace les NA par "false" dans la colonne under_pressure
 df_model_7$under_pressure <- ifelse(is.na(df_model_7$under_pressure), FALSE, df_model_7$under_pressure)
+
+df_model_7 <- df_model_7 %>% mutate(distance_to_center.GK = case_when(location.y.GK >40 ~ location.y.GK-40,
+                                                                      location.y.GK<=40 ~ -(location.y.GK-40)),
+                                    distance_to_center = case_when(location.y >40 ~ location.y-40,
+                                                                      location.y<=40 ~ -(location.y-40)))
 
 #On teste le modèle avec toutes les variables
 glm.model_7 <- glm(shot.outcome.name ~ ., data = df_model_7, family = binomial(link = "logit"))
@@ -607,8 +638,17 @@ On peut donc enlever la variable location.y
 AIC très faible -> Meilleur modèle pour l'instant
 
 ```{r}
+print(length(df_model_6$shot.outcome.name))
+```
+
+
+```{r}
 #On cherche quel est le meilleur modèle (qui minimise l'AIC)
-stepAIC(glm.model_6, trace=FALSE)
+
+#sélection de modèle avec BIC : 
+stepAIC(glm.model_7, trace=FALSE, k=log(length(df_model_6$shot.outcome.name)))
+#sélection de variables avec le critère AIC : 
+stepAIC(glm.model_7, trace=FALSE)
 ```
 On voit que les positions en y ne servent à rien, seules celles en x sont significatives, ainsi que la partie du corps et la technique utilisée
 -> Meilleur modèle 
