@@ -1,0 +1,677 @@
+---
+title: "Untitled"
+output: html_document
+date: "2024-02-25"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(StatsBombR)
+library(extrafont)
+library(MASS)
+library(dplyr)
+```
+
+```{r}
+# World Cup 2023 (id 72)
+WC2023 <- FreeCompetitions() %>%
+filter(competition_id==72 & season_name=="2023")
+
+# Games availables in WC2023
+Matches <- FreeMatches(WC2023)
+
+# Events for the games of the WC2023
+WC2023_dataframe <- free_allevents(MatchesDF = Matches, Parallel = T)
+WC2023_dataframe = allclean(WC2023_dataframe)
+```
+
+```{r}
+library(stringr)
+WC2023_dataframe <- WC2023_dataframe %>%
+  mutate(team.name = str_remove(team.name, " Women's"))
+
+WC2023_dataframe <- WC2023_dataframe %>%
+  mutate(possession_team.name = str_remove(possession_team.name, " Women's"))
+```
+
+```{r}
+#Nombre de buts et tirs sur tous les matchs pour chaque équipe
+shots_goals = WC2023_dataframe %>%
+group_by(team.name) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+```
+
+```{r}
+library(ggplot2)
+
+
+# Créer un diagramme en barres horizontal
+ggplot(shots_goals, aes(y = reorder(as.factor(team.name), goals))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Nombre de tirs et de buts pour chaque équipe",
+       y = "Equipe",
+       x = "Nombre") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green")) +
+  theme(text=element_text(family = font_family))
+```
+il serait intéressant de faire ce graphique sur le nombre moyen de buts et de tirs, car certaines equipes ont plus de matchs que d'autres, faussant un peu les résultats
+
+
+```{r}
+library(ggplot2)
+
+
+
+ggplot(shots_goals, aes(y = reorder(as.factor(team.name), goals/shots*100))) +
+  geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Pourcentage de tirs menant à un but",
+       y = "Equipe",
+       x = "Pourcentage") +
+  theme(text=element_text(family = font_family))
+```
+
+
+
+```{r}
+#Nombre de buts et tirs sur chaque match pour les deux équipes
+shots_goals_all_matches = WC2023_dataframe %>%
+group_by(match_id) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+
+```
+
+```{r}
+#On affiche les id de tous les matchs de la France
+
+Id_France = WC2023_dataframe%>% filter(team.name=="France")
+match_ids_france=unique(Id_France$match_id)
+print(match_ids_france)
+```
+
+
+
+
+```{r}
+
+# On affiche pour chaque match de la France le nombre de tirs et de buts au total pour les 2 équipes (France+adversaire)
+
+
+france_goals <- shots_goals_all_matches %>%
+  filter(match_id %in% match_ids_france)
+
+print(france_goals)
+```
+
+
+
+
+```{r}
+library(ggplot2)
+
+
+ggplot(france_goals, aes(y = as.factor(match_id))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Nombre de tirs et de buts pour chaque match de la France",
+       y = "Match_id",
+       x = "Nombre") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green")) +
+  theme(text=element_text(family = font_family))
+  
+```
+
+
+
+```{r}
+library(ggplot2)
+
+
+
+ggplot(france_goals, aes(y = reorder(as.factor(match_id), goals/shots*100))) +
+  geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Pourcentage de tirs menant à un but dans les matchs de la France",
+       y = "Match",
+       x = "Pourcentage") +
+  theme(text=element_text(family = font_family))
+
+#Il faut ordonner par date pour avoir l'évolution de la stratégie au cours de la compétition
+
+
+```
+
+```{r}
+
+#On veut savoir quels buts viennent de la France
+shots_goals_France_all_matches = WC2023_dataframe %>%
+filter(team.name=="France") %>%
+group_by(match_id) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+
+print (shots_goals_France_all_matches)
+
+library(ggplot2)
+
+
+ggplot(shots_goals_France_all_matches, aes(y = as.factor(match_id))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Nombre de tirs et de buts pour chaque match de la France",
+       y = "Match_id",
+       x = "Nombre") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green")) +
+  theme(text=element_text(family = font_family))
+  
+
+library(ggplot2)
+
+
+
+ggplot(shots_goals_France_all_matches, aes(y = as.factor(match_id))) +
+  geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Pourcentage de tirs menant à un but dans les matchs de la France",
+       y = "Match",
+       x = "Pourcentage") +
+  theme(text=element_text(family = font_family))
+
+#Ordonnée du bas vers le haut : 1er match jusqu'au dernier
+
+
+
+```
+
+
+```{r}
+#Nombre de buts et tirs sur tous les matchs en fonction du type de tirs
+shots_goals_formation = WC2023_dataframe %>%
+group_by(shot.type.name) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+
+shots_goals_formation=shots_goals_formation[-c(5),]
+```
+
+```{r}
+library(ggplot2)
+
+
+# Créer un diagramme en barres horizontal
+ggplot(shots_goals_formation, aes(y = reorder(as.factor(shot.type.name), goals))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Nombre de tirs et de buts pour chaque type de tirs",
+       y = "type",
+       x = "Nombre") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green")) +
+  theme(text=element_text(family = font_family))
+```
+```{r}
+library(ggplot2)
+
+
+# Créer un diagramme en barres horizontal
+ggplot(shots_goals_formation, aes(y = reorder(as.factor(shot.type.name), goals/shots*100))) +
+  geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Pourcentage de tirs menant à un but",
+       y = "type",
+       x = "Pourcentage") +
+  theme(text=element_text(family = font_family))
+
+
+
+```
+
+
+
+
+```{r}
+#Nombre de buts et tirs sur tous les matchs en fonction de la technique de tir
+shots_goals_technique = WC2023_dataframe %>%
+group_by(shot.technique.name) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+
+#On enlève la ligne NA
+
+shots_goals_technique=shots_goals_technique[-c(8),]
+```
+
+```{r}
+library(ggplot2)
+
+
+
+ggplot(shots_goals_technique, aes(y = reorder(as.factor(shot.technique.name), goals))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Nombre de tirs et de buts pour chaque technique de tir",
+       y = "technique de tir",
+       x = "Nombre") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green")) +
+  theme(text=element_text(family = font_family))
+```
+
+
+```{r}
+library(ggplot2)
+
+
+
+ggplot(shots_goals_technique, aes(y = reorder(as.factor(shot.technique.name), goals/shots*100))) +
+  geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Pourcentage de tirs menant à un but",
+       y = "technique de tir",
+       x = "Pourcentage") +
+  theme(text=element_text(family = font_family))
+
+```
+
+
+
+
+```{r}
+#Nombre de buts et tirs sur tous les matchs en fonction de la zone du corps utilisée
+shots_goals_part = WC2023_dataframe %>%
+group_by(shot.body_part.name) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+shots_goals_part=shots_goals_part[-c(5),]
+
+
+```
+
+```{r}
+library(ggplot2)
+
+
+ggplot(shots_goals_part, aes(y = reorder(as.factor(shot.body_part.name), goals))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Nombre de tirs et de buts pour chaque zone du corps",
+       y = "Zone du corps",
+       x = "Nombre") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green")) +
+  theme(text=element_text(family = font_family))
+```
+
+```{r}
+library(ggplot2)
+
+
+ggplot(shots_goals_part, aes(y = reorder(as.factor(shot.body_part.name), goals/shots*100))) +
+  geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Pourcentage de tirs menant à un but",
+       y = "Zone du corps",
+       x = "Pourcentage") +
+  theme(text=element_text(family = font_family))
+```
+
+
+
+```{r}
+#On créé un dataframe avec seulement les tirs
+
+shots = WC2023_dataframe %>%
+ filter(type.name=="Shot")
+```
+
+
+```{r}
+#On fait un modèle pour faire une regression logistique : on veut en sortie 0 ou 1 en fonction de si le tir se transforme en but
+
+#on garde les variables étudiées précédemment:
+
+df_model_1 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name)
+df_model_1$shot.outcome.name <- ifelse(df_model_1$shot.outcome.name == "Goal", 1, 0)
+
+
+```
+
+
+```{r}
+#On teste une regression sans intéraction
+glm.model_1<-glm(shot.outcome.name~ . ,data=df_model_1,family=binomial(link="logit"))
+summary(glm.model_1)
+```
+On voit un shot.type.namePenalty faussé car la modalité corner est prise en référence et vu qu'il n'y a pas eu de tirs ni du but durant la compet, le modèle considère 100% de réussite pour la modalité corner.
+
+```{r}
+
+
+#On change la modalité de référence de "corner" à "penalty"
+df_model_1_modif=df_model_1
+df_model_1_modif$shot.type.name <- relevel(as_factor(df_model_1_modif$shot.type.name), ref = "Penalty")
+
+glm.model_1_modif <- glm(shot.outcome.name ~ . , data = df_model_1_modif, family = binomial(link = "logit"))
+summary(glm.model_1_modif)
+
+```
+On voit que Open Play et Free Kick ont moins de chance de se transformer en but par rapport au pénalty. Le corner reste faussé
+
+```{r}
+#Calcul du R2:
+print(1-(glm.model_1$deviance/glm.model_1$null.deviance))
+
+```
+```{r}
+
+#On teste une regression avec intéraction
+glm.model_1_interac<-glm(shot.outcome.name~ .^2 ,data=df_model_1,family=binomial(link="logit"))
+summary(glm.model_1_interac)
+
+#Beaucoup de NA car certaines intéractions impossible (ex : reprise de volley sur un pénalty)
+```
+```{r}
+#Calcul du R2:
+print(1-(glm.model_1_interac$deviance/glm.model_1_interac$null.deviance))
+```
+```{r}
+#On essaye de voir quel serait le R2 max avec toutes les variables
+shots_complet = WC2023_dataframe %>%
+ filter(type.name=="Shot")
+shots_complet$shot.outcome.name <- ifelse(shots_complet$shot.outcome.name == "Goal", 1, 0)
+shots_complet= shots_complet[,c(73:87)]
+shots_complet= shots_complet[,-c(2,5)]
+
+#Pas concluant parce que dans le dataframe plein de colonnes qui n'avaient pas le bon format
+
+```
+
+```{r}
+#On teste une regression sans intéraction
+glm.model_complet<-glm(shot.outcome.name~ . ,data=shots_complet,family=binomial(link="logit"))
+summary(glm.model_complet)
+```
+
+
+```{r}
+#On fait un modèle avec comme variable l'expected goal déjà donné
+df_model_2 <- dplyr::select(shots,shot.statsbomb_xg,shot.outcome.name)
+df_model_2$shot.outcome.name <- ifelse(df_model_2$shot.outcome.name == "Goal", 1, 0)
+
+glm.model_2<-glm(shot.outcome.name~ . ,data=df_model_2,family=binomial(link="logit"))
+summary(glm.model_2)
+print(1-(glm.model_2$deviance/glm.model_2$null.deviance))
+
+```
+```{r}
+#On refait  le même modèle logistique mais avec la position en plus
+
+df_model_3 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.y)
+df_model_3$shot.outcome.name <- ifelse(df_model_3$shot.outcome.name == "Goal", 1, 0)
+
+
+```
+```{r}
+#On teste une regression sans intéraction
+glm.model_3<-glm(shot.outcome.name~ . ,data=df_model_3,family=binomial(link="logit"))
+summary(glm.model_3)
+```
+```{r}
+print(1-(glm.model_3$deviance/glm.model_3$null.deviance))
+
+```
+```{r}
+#On teste une regression avec intéraction
+glm.model_3_interac<-glm(shot.outcome.name~ .^2 ,data=df_model_3,family=binomial(link="logit"))
+summary(glm.model_3_interac)
+print(1-(glm.model_3_interac$deviance/glm.model_3_interac$null.deviance))
+
+#Avec intéractions on a ciblé les principales variables pour obtenir un bon modèle et le R^2 le plus proche de 1 possible
+
+```
+```{r}
+
+#On fait plusieurs tests pour voir quelles variables sont significatives dans le modèle et on voit qu'on peut enlever la technique
+model_simp<-glm(shot.outcome.name~ (location.x +location.y + shot.body_part.name+shot.type.name)^2 ,data=df_model_3,family=binomial(link="logit"))
+anova(model_simp,glm.model_3_interac,test="Chisq")
+
+
+```
+```{r}
+summary(model_simp)
+print(1-(model_simp$deviance/model_simp$null.deviance))
+
+#Le R^2 est pas plus grand que pour le modele 3 avec intéractions : normal car le R^2 favorise les modèles avec bcp de variables
+#Il faudrait regarder d'autres variables comme l'AIC, qui au minimum est pour le modèle 3 sans intéractions 
+
+```
+```{r}
+#On va comparer les fitted values (Pi_chapeau): proba d'être un but, avec les expected goals
+glm.model_3$fitted.values
+#on a bien des nb entre 0 et 1
+
+```
+
+```{r}
+#On cherche à comparer le modèle 3 avec et sans intéraction : la norme 2 doit être proche de 0 :
+
+library(matrixStats)
+
+# Afficher la norme L2 modèle 3
+norme_L2_mod3 <- norm(glm.model_3$fitted.values - shots$shot.statsbomb_xg, type = "2")
+print(norme_L2_mod3)
+
+# Afficher la norme L2 modèle 3 avec intéractions : 
+norme_L2_mod3avecinterac <- norm(glm.model_3_interac$fitted.values - shots$shot.statsbomb_xg, type = "2")
+print(norme_L2_mod3avecinterac)
+
+
+#On retrouve ce que disait l'AIC, évalue mieux que le R^2 : modèle 3 sans intéraction est le meilleur
+```
+```{r}
+#On cherche à comparer le modèle 1 avec et sans intéraction : la norme 2 doit être proche de 0 :
+
+
+# Afficher la norme L2 modèle 1
+norme_L2_mod1 <- norm(glm.model_1$fitted.values - shots$shot.statsbomb_xg, type = "2")
+print(norme_L2_mod1)
+
+# Afficher la norme L2 modèle 1 avec intéractions : 
+norme_L2_mod1avecinterac <- norm(glm.model_1_interac$fitted.values - shots$shot.statsbomb_xg, type = "2")
+print(norme_L2_mod1avecinterac)
+
+
+#Les deux modèles sont moins bien que le 3
+
+```
+
+```{r}
+
+
+df_model_4 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.y,under_pressure)
+df_model_4$shot.outcome.name <- ifelse(df_model_4$shot.outcome.name == "Goal", 1, 0)
+
+#On remplace les NA par "false" dans la colonne under_pressure
+df_model_4$under_pressure <- ifelse(is.na(df_model_4$under_pressure), FALSE, df_model_4$under_pressure)
+
+#On teste le modèle avec seulement la variable under_pressure
+glm.model_4 <- glm(shot.outcome.name ~ under_pressure, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4)
+```
+pval<0.05 donc on rejette H0 : le fait de jouer sous pression est significatif
+Estimation des coeffs négatif donc le fait de jouer sous pression diminue la proba de marquer 
+
+
+```{r}
+#On teste le modèle avec seulement la variable shot.body_part.name
+
+glm.model_4_bodypart <- glm(shot.outcome.name ~ shot.body_part.name, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4_bodypart)
+```
+La proba de marquer de la tête est moins forte que pour les autres parties du corps
+
+```{r}
+#On teste le modèle avec seulement la variable shot.technique.name
+
+glm.model_4_technique <- glm(shot.outcome.name ~ shot.technique.name, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4_technique)
+```
+Reférence : backheel (tallonade) : toutes les autres techniques sont mieux, on a bcp de valeurs proches de 1, on pourrait faire un sous modèle constant pour voir si cette variable est significative
+```{r}
+model_constant= glm(shot.outcome.name ~ 1, data = df_model_4, family = binomial(link = "logit"))
+anova(model_constant,glm.model_4_technique,test="Chisq")
+```
+On rejette H0, la variable technique est significative
+
+```{r}
+#On teste le modèle avec seulement la variable shot.type.name
+
+glm.model_4_type <- glm(shot.outcome.name ~ shot.type.name, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4_type)
+
+```
+
+```{r}
+#On peut également faire un test de sous modèle
+anova(model_constant,glm.model_4_type,test="Chisq")
+```
+
+La variable type.name est significative, on rejette H0
+```{r}
+#On teste le modèle avec seulement la variable location.x
+
+glm.model_4_loc_x <- glm(shot.outcome.name ~ location.x, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4_loc_x)
+```
+On voit des pval<0.05 donc location.x est très significative
+
+
+
+
+```{r}
+#On teste mtn avec toutes les variables du modèle 4+under_pressure
+glm.model_5 <- glm(shot.outcome.name ~ ., data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_5)
+
+print(1-(glm.model_5$deviance/glm.model_5$null.deviance))
+```
+On a un R**2 bien=0.20 mais normal car modèle avec bcp de variables
+AIC bien =954.37 
+
+
+```{r}
+#On créé un nouveau df avec toutes les variables précédentes + position du gardien
+df_model_6 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.y,under_pressure,location.x.GK,location.y.GK)
+df_model_6$shot.outcome.name <- ifelse(df_model_6$shot.outcome.name == "Goal", 1, 0)
+
+#On remplace les NA par "false" dans la colonne under_pressure
+df_model_6$under_pressure <- ifelse(is.na(df_model_6$under_pressure), FALSE, df_model_6$under_pressure)
+
+#On teste le modèle avec seulement la variable location.x.GK
+glm.model_6_location.x.GK <- glm(shot.outcome.name ~ location.x.GK, data = df_model_6, family = binomial(link = "logit"))
+summary(glm.model_6_location.x.GK)
+print(1-(glm.model_6_location.x.GK$deviance/glm.model_6_location.x.GK$null.deviance))
+```
+On a un effet significatif de la position du goal en x, AIC très bas 
+
+```{r}
+#On teste le modèle avec seulement la variable location.y.GK
+glm.model_6_location.y.GK <- glm(shot.outcome.name ~ location.y.GK, data = df_model_6, family = binomial(link = "logit"))
+summary(glm.model_6_location.y.GK)
+
+print(1-(glm.model_6_location.y.GK$deviance/glm.model_6_location.y.GK$null.deviance))
+```
+Variable de la position du gardien en y significative, AIC un peu plus élevé que pour position en x
+
+```{r}
+#On teste le modèle avec toutes les varaibles du df6 sans intéraction
+glm.model_6 <- glm(shot.outcome.name ~ ., data = df_model_6, family = binomial(link = "logit"))
+summary(glm.model_6)
+
+print(1-(glm.model_6$deviance/glm.model_6$null.deviance))
+
+```
+AIC très faible, modèle bien
+
+```{r}
+#On créé un nouveau df sans location.y
+df_model_7 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,under_pressure,location.x.GK,location.y.GK)
+df_model_7$shot.outcome.name <- ifelse(df_model_7$shot.outcome.name == "Goal", 1, 0)
+
+#On remplace les NA par "false" dans la colonne under_pressure
+df_model_7$under_pressure <- ifelse(is.na(df_model_7$under_pressure), FALSE, df_model_7$under_pressure)
+
+#On teste le modèle avec toutes les variables
+glm.model_7 <- glm(shot.outcome.name ~ ., data = df_model_7, family = binomial(link = "logit"))
+summary(glm.model_7)
+print(1-(glm.model_7$deviance/glm.model_7$null.deviance))
+
+```
+On peut donc enlever la variable location.y
+AIC très faible -> Meilleur modèle pour l'instant
+```{r}
+library(ggplot2)
+
+#On veut comparer nos xg obtenus avec le modèle 7 avec ceux de statsbomb :
+
+#On a un pb de tailles entre les deux vecteurs : il y a des valeurs manquantes
+#On obtient les indices des observations manquantes pour toutes les variables du modèle 7
+indices_obs_manquantes <- which(!complete.cases(df_model_7))
+indices_non_manquants <- setdiff(1:nrow(df_model_7), indices_obs_manquantes)
+
+#On garde seulement les lignes sans observations manquantes
+statsbomb_xg <- shots$shot.statsbomb_xg[indices_non_manquants]
+
+df_plot <- data.frame(statsbomb_xg = statsbomb_xg, fitted = glm.model_7$fitted.values)
+
+#On compare les 2
+ggplot(df_plot, aes(x = seq_along(statsbomb_xg))) +
+  geom_point(aes(y = statsbomb_xg), color = "blue") +
+  geom_point(aes(y = fitted), color = "red") +
+  labs(title = "Comparaison de statsbomb_xg et valeurs ajustées",
+       x = "Observations",
+       y = "Valeurs") +
+  theme_minimal()
+
+ggplot(df_plot, aes(x = seq_along(statsbomb_xg))) +
+  geom_point(aes(y = log(statsbomb_xg)), color = "blue") +
+  geom_point(aes(y = log(fitted)), color = "red") +
+  labs(title = "Comparaison de statsbomb_xg et valeurs ajustées",
+       x = "Observations",
+       y = "Valeurs") +
+  theme_minimal()
+
+
+#On trace l'un en fonction de l'autre : les xg en fonction de nos fitted values
+ggplot(df_plot, aes(x = statsbomb_xg, y = fitted)) +
+  geom_point() + 
+  geom_abline(intercept = 0, slope = 1, color = "red") + 
+  labs(title = "Comparaison de statsbomb_xg et valeurs ajustées",
+       x = "statsbomb_xg",
+       y = "Valeurs ajustées") + 
+  theme_minimal()  
+
+#Pareil en log
+
+ggplot(df_plot, aes(x = log(statsbomb_xg), y = log(fitted))) +
+  geom_point() + 
+  geom_abline(intercept = 0, slope = 1, color = "red") + 
+  labs(title = "Comparaison de statsbomb_xg et valeurs ajustées",
+       x = "statsbomb_xg",
+       y = "Valeurs ajustées") + 
+  theme_minimal()  
+
+
+```
+
+On a bcp de valeurs proches de 0 donc on fait le log pour que ça soit plus clair
+
+En log : On a un point (une observation) ou on a surestimé la chance de marquer, on a qq points en bas à droite où au contraire on a sous estimé la proba mais globalement on a une bonne prédiction par rapport aux Xg de stats bomb.
+
+
+
+```{r}
+#On cherche quel est le meilleur modèle (qui minimise l'AIC)
+stepAIC(glm.model_6, trace=FALSE)
+```
+On voit que les positions en y ne servent à rien, seules celles en x sont significatives, ainsi que la partie du corps et la technique utilisée
+-> Meilleur modèle 
+
