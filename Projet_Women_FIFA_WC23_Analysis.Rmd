@@ -1,0 +1,302 @@
+---
+title: "Projet_Women_FIFA_WC23_Analysis"
+institute : "INSA Toulouse"
+date: "`r Sys.Date()`"
+always_allow_html: true
+output: 
+  pdf_document :
+    toc : TRUE
+    toc_depth : 3
+    number_section : TRUE
+    fig_caption: yes
+header-includes:
+   - \usepackage{dsfont}
+   - \usepackage{color}
+   - \newcommand{\1}{\mathds{1}}
+---
+
+```{r, include=FALSE}
+#Eval=False : on compile pas le chunk
+#Include=False : on affiche rien
+#Echo=False : on affiche que la sortie
+```
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(StatsBombR)
+library(extrafont)
+library(MASS)
+library(dplyr)
+library(plotly)
+library(stringr)
+library(ggplot2)
+library(writexl)
+library(readxl)
+library(gridExtra)
+
+
+
+
+```
+
+\newpage
+
+# Introduction
+
+  Blalblablabla
+  
+  
+```{r, include=FALSE}
+# World Cup 2023 (id 72)
+WC2023 <- FreeCompetitions() %>%
+filter(competition_id==72 & season_name=="2023")
+
+# Games availables in WC2023
+Matches <- FreeMatches(WC2023)
+```
+
+```{r, include=FALSE,eval=F}
+
+# Events for the games of the WC2023
+WC2023_dataframe <- free_allevents(MatchesDF = Matches, Parallel = T)
+WC2023_dataframe = allclean(WC2023_dataframe)
+
+```
+
+
+```{r, include=F}
+
+# Lire le fichier CSV dans R
+#write.csv(WC2023_dataframe, "WC2023_dataframe.csv", row.names = FALSE)
+
+WC2023_dataframe <- read.csv("WC2023_dataframe.csv")
+
+```
+
+
+
+```{r,, include=FALSE}
+WC2023_dataframe <- WC2023_dataframe %>%
+  mutate(team.name = str_remove(team.name, " Women's"))
+
+WC2023_dataframe <- WC2023_dataframe %>%
+  mutate(possession_team.name = str_remove(possession_team.name, " Women's"))
+```
+
+# Descriptive data analysis 
+
+ We begin by interpreting the elements of the data set.\
+It is made up of multiple observations with different variables.\
+
+## Analysis of successfull shots according to country
+   First, we look at the number of goals and shots in all matches for each team.\
+Figure \ref{fig:fig1} shows a visualization of these results.\
+
+
+```{r, include=FALSE}
+#Number of goals and shots in all games for each team
+shots_goals = WC2023_dataframe %>%
+group_by(team.name) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+```
+
+```{r fig1 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig1}Diagram of the number of goals and shots in all matches for each team",fig.height=2.5}
+#Let's make a graph
+ggplot(shots_goals, aes(y = reorder(as.factor(team.name), goals))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Number of goals and shots in all games for each team",
+       y = "Team",
+       x = "Number") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green"))
+```
+
+It would be interesting to make this graph on the average number of goals and shots, as some teams have more games than others, distorting the results a little.
+
+Figure \ref{fig:fig2} shows a visualization of the percentage of shots leading to a goal.\
+
+```{r fig2 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig2}Diagram of the percentage of shots leading to a goal",fig.height=2,fig.align='center'}
+
+ggplot(shots_goals, aes(y = reorder(as.factor(team.name), goals/shots*100))) +
+  geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Percentage of shots leading to a goal",
+       y = "Team",
+       x = "Percentage")
+```
+
+\vspace{3pt}
+
+We now would like to focus on France team.\
+Figure \ref{fig:fig3} shows the results.\
+
+```{r,include=F}
+#Number of goals and shots in each match for both teams
+shots_goals_all_matches = WC2023_dataframe %>%
+group_by(match_id) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+
+```
+
+```{r,include=F}
+#We display ids of all France matches
+Id_France = WC2023_dataframe%>% filter(team.name=="France")
+match_ids_france=unique(Id_France$match_id)
+print(match_ids_france)
+```
+
+
+```{r,include=F}
+
+#For each French match, the total number of shots and goals for the 2 teams (France+adversary) is displayed.
+
+
+france_goals <- shots_goals_all_matches %>%
+  filter(match_id %in% match_ids_france)
+
+print(france_goals)
+```
+
+```{r,include=F}
+
+ggplot(france_goals, aes(y = as.factor(match_id))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Number of shots and goals for each French match",
+       y = "Match_id",
+       x = "Number") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green"))
+  
+```
+
+
+
+```{r,include=F}
+ggplot(france_goals, aes(y = reorder(as.factor(match_id), goals/shots*100))) +
+  geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Percentage of shots on goal in France matches",
+       y = "Match",
+       x = "Percentage")
+
+#Il faut ordonner par date pour avoir l'évolution de la stratégie au cours de la compétition
+
+
+```
+
+```{r,include=F}
+
+#We want to know which goals come from France
+shots_goals_France_all_matches = WC2023_dataframe %>%
+filter(team.name=="France") %>%
+group_by(match_id) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+
+print (shots_goals_France_all_matches)
+
+```
+
+
+
+```{r fig3 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig3}Diagram of the number of shots and goals for each French and percentage",fig.height=2,fig.align='center'}
+
+g1=ggplot(shots_goals_France_all_matches, aes(y = as.factor(match_id))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Numbers for French matches",
+       y = "Match_id",
+       x = "Number") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green")) 
+
+
+g2=ggplot(shots_goals_France_all_matches, aes(y = as.factor(match_id))) +
+  geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Percentage in France matches",
+       y = "Match",
+       x = "Percentage") 
+
+#Order from bottom to top: 1st match to last
+grid.arrange(g1,g2,ncol=2)
+```
+\clearpage
+ 
+## Analysis of successfull shots according to different variables  
+
+### According to type of shots
+
+```{r,include=F}
+#Number of goals and shots in all matches by type of shot
+shots_goals_formation = WC2023_dataframe %>%
+group_by(shot.type.name) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+
+shots_goals_formation=shots_goals_formation[-c(5),]
+```
+
+```{r fig4 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig4}Diagram of the number of shots and goals for each type of shot",fig.height=2,fig.align='center'}
+ggplot(shots_goals_formation, aes(y = reorder(as.factor(shot.type.name), goals))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Number of shots and goals for each type of shot",
+       y = "type",
+       x = "Number") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green"))
+```
+
+### According to technique of shots
+
+  We know would like to see if the technique of shot is significant.\
+
+```{r,include=F}
+#Number of shots and goals for each technique of shot
+shots_goals_technique = WC2023_dataframe %>%
+group_by(shot.technique.name) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+
+#On enlève la ligne NA
+
+shots_goals_technique=shots_goals_technique[-c(8),]
+```
+
+```{r fig5 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig5}Diagram of the number of shots and goals for each technique of shot",fig.height=2,fig.pos="h",fig.align='center'}
+
+ggplot(shots_goals_technique, aes(y = reorder(as.factor(shot.technique.name), goals))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Number of shots and goals for each technique of shot",
+       y = "Technique of shot",
+       x = "Number") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green"))
+```
+
+### According to body zone used
+
+```{r,include=F}
+#Number of goals and shots over all matches according to body zone used
+shots_goals_part = WC2023_dataframe %>%
+group_by(shot.body_part.name) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+shots_goals_part=shots_goals_part[-c(5),]
+
+```
+
+```{r fig6 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig6}Diagram of the number of goals and shots according to body zone used",fig.height=2,fig.pos="h"}
+
+ggplot(shots_goals_part, aes(y = reorder(as.factor(shot.body_part.name), goals))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Number of goals and shots according to body zone used",
+       y = "Body zone",
+       x = "Number") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green")) 
+```
+\clearpage
+
+# Models analysis
