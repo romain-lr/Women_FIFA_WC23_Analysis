@@ -91,7 +91,7 @@ WC2023_dataframe <- WC2023_dataframe %>%
  We begin by interpreting the elements of the data set.\
 It is made up of multiple observations with different variables.\
 
-## Analysis of successfull shots according to country
+## Analysis of successful shots according to country
    First, we look at the number of goals and shots in all matches for each team.\
 Figure \ref{fig:fig1} shows a visualization of these results.\
 
@@ -104,7 +104,7 @@ summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
 goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
 ```
 
-```{r fig1 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig1}Diagram of the number of goals and shots in all matches for each team",fig.height=2.5}
+```{r fig1 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig1}Diagram of the number of goals and shots in all matches for each team",fig.height=4.5}
 #Let's make a graph
 ggplot(shots_goals, aes(y = reorder(as.factor(team.name), goals))) +
   geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
@@ -119,7 +119,7 @@ It would be interesting to make this graph on the average number of goals and sh
 
 Figure \ref{fig:fig2} shows a visualization of the percentage of shots leading to a goal.\
 
-```{r fig2 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig2}Diagram of the percentage of shots leading to a goal",fig.height=2,fig.align='center'}
+```{r fig2 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig2}Diagram of the percentage of shots leading to a goal",fig.height=4,fig.align='center'}
 
 ggplot(shots_goals, aes(y = reorder(as.factor(team.name), goals/shots*100))) +
   geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
@@ -224,9 +224,9 @@ grid.arrange(g1,g2,ncol=2)
 ```
 \clearpage
  
-## Analysis of successfull shots according to different variables  
+## Analysis of successful shots according to different variables  
 
-### According to type of shots
+We first look at the type of shots.\
 
 ```{r,include=F}
 #Number of goals and shots in all matches by type of shot
@@ -248,7 +248,6 @@ ggplot(shots_goals_formation, aes(y = reorder(as.factor(shot.type.name), goals))
   scale_fill_manual(values = c("shots" = "brown", "goals" = "green"))
 ```
 
-### According to technique of shots
 
   We know would like to see if the technique of shot is significant.\
 
@@ -275,7 +274,7 @@ ggplot(shots_goals_technique, aes(y = reorder(as.factor(shot.technique.name), go
   scale_fill_manual(values = c("shots" = "brown", "goals" = "green"))
 ```
 
-### According to body zone used
+Finally, is the variable body_zone_used relevant ?
 
 ```{r,include=F}
 #Number of goals and shots over all matches according to body zone used
@@ -300,3 +299,90 @@ ggplot(shots_goals_part, aes(y = reorder(as.factor(shot.body_part.name), goals))
 \clearpage
 
 # Models analysis
+
+We wanted to create our own xG model. To do that we developed different models, finding the most relevant variables to predict goals.\
+
+```{r,include=F}
+#We create a df with just the shots
+
+shots = WC2023_dataframe %>%
+ filter(type.name=="Shot")
+```
+
+We run a logistic regression model: we want the output to be 0 or 1 depending on whether the shot turns into a goal.\
+
+The first model keeps the variables studied previously : body part, technique, type of shot. \
+
+
+```{r,include=F}
+
+df_model_1 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name)
+df_model_1$shot.outcome.name <- ifelse(df_model_1$shot.outcome.name == "Goal", 1, 0)
+
+
+```
+
+```{r, include = F}
+#Testing regression without interaction
+
+glm.model_1<-glm(shot.outcome.name~ . ,data=df_model_1,family=binomial(link="logit"))
+summary(glm.model_1)
+```
+
+```{r,include=F}
+#We see a skewed shot.type.namePenalty because the corner modality is taken as reference and, given that there were no shots or goals during the competition, the model considers 100% success for the corner modality.
+
+
+#We change the reference modality from “corner” to “penalty”.
+df_model_1_modif=df_model_1
+df_model_1_modif$shot.type.name <- relevel(as_factor(df_model_1_modif$shot.type.name), ref = "Penalty")
+
+glm.model_1_modif <- glm(shot.outcome.name ~ . , data = df_model_1_modif, family = binomial(link = "logit"))
+summary(glm.model_1_modif)
+
+```
+
+```{r,include=F}
+#We can see that Open Play and Free Kick are less likely to result in a goal than a penalty kick. The corner remains distorted
+```
+
+
+$R^2$ for the model without interaction is :\
+
+```{r,echo=F}
+#R2 calculation:
+print(1-(glm.model_1$deviance/glm.model_1$null.deviance))
+
+```
+
+```{r,include=F}
+#Testing regression with interaction
+glm.model_1_interac<-glm(shot.outcome.name~ .^2 ,data=df_model_1,family=binomial(link="logit"))
+summary(glm.model_1_interac)
+#A lot of NA because some interactions are impossible (e.g. volleyball restart on a penalty kick).
+
+```
+$R^2$ for the model with interaction is :\
+
+```{r,echo=F}
+#R2 calculation:
+print(1-(glm.model_1_interac$deviance/glm.model_1_interac$null.deviance))
+```
+
+We make a model with the given expected goal as variable.\
+
+
+```{r,include=F}
+df_model_2 <- dplyr::select(shots,shot.statsbomb_xg,shot.outcome.name)
+df_model_2$shot.outcome.name <- ifelse(df_model_2$shot.outcome.name == "Goal", 1, 0)
+
+glm.model_2<-glm(shot.outcome.name~ . ,data=df_model_2,family=binomial(link="logit"))
+summary(glm.model_2)
+
+```
+We would therefore like to find a model with an $R^2$ value close to this model, i.e. an $R^2$ close to :
+```{r,echo=F}
+print(1-(glm.model_2$deviance/glm.model_2$null.deviance))
+
+```
+
