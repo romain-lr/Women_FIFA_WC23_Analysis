@@ -386,3 +386,69 @@ print(1-(glm.model_2$deviance/glm.model_2$null.deviance))
 
 ```
 
+We do the same logistical model but with the position added : location.x and location.y
+
+```{r,include=F}
+
+df_model_3 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.y)
+df_model_3$shot.outcome.name <- ifelse(df_model_3$shot.outcome.name == "Goal", 1, 0)
+
+```
+
+```{r,include=F}
+#Model without interaction
+glm.model_3<-glm(shot.outcome.name~ . ,data=df_model_3,family=binomial(link="logit"))
+summary(glm.model_3)
+```
+
+We test a regression without interaction, and obtain an $R^2$ of :
+
+```{r,echo=F}
+print(1-(glm.model_3$deviance/glm.model_3$null.deviance))
+
+```
+
+With interaction, and get an $R^2$ of :
+```{r,include=F}
+#Model with interaction
+
+glm.model_3_interac<-glm(shot.outcome.name~ .^2 ,data=df_model_3,family=binomial(link="logit"))
+summary(glm.model_3_interac)
+```
+
+```{r,echo=F}
+print(1-(glm.model_3_interac$deviance/glm.model_3_interac$null.deviance))
+```
+With interactions, we targeted the main variables to obtain a good model and an $R^2$ as close to 1 as possible.
+
+
+We run several tests to see which variables are significant in the model. 
+
+```{r,echo=F}
+
+model_simp<-glm(shot.outcome.name~ (location.x +location.y + shot.body_part.name+shot.type.name)^2 ,data=df_model_3,family=binomial(link="logit"))
+anova(model_simp,glm.model_3_interac,test="Chisq")
+
+```
+
+We see that we can remove the technique because p_value>0.05 so we can accept the sub-model with a 95% level.
+
+```{r,include=F}
+summary(model_simp)
+```
+
+For this model we obtain an $R^2$ of :
+
+```{r,echo=F}
+print(1-(model_simp$deviance/model_simp$null.deviance))
+```
+
+The $R^2$ is no greater than for model 3 with interactions: this is normal because the $R^2$ favors models with many variables.
+We should look at other variables such as AIC, which is minimum for model 3 without interactions.
+
+```{r,include=F}
+#We'll compare the fitted values (probability of being a goal), with the expected goals.
+glm.model_3$fitted.values
+#we have numbers between 0 and 1 so this is good.
+
+```
