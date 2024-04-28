@@ -1,0 +1,454 @@
+---
+title: "Projet_Women_FIFA_WC23_Analysis"
+institute : "INSA Toulouse"
+date: "`r Sys.Date()`"
+always_allow_html: true
+output: 
+  pdf_document :
+    toc : TRUE
+    toc_depth : 3
+    number_section : TRUE
+    fig_caption: yes
+header-includes:
+   - \usepackage{dsfont}
+   - \usepackage{color}
+   - \newcommand{\1}{\mathds{1}}
+---
+
+```{r, include=FALSE}
+#Eval=False : on compile pas le chunk
+#Include=False : on affiche rien
+#Echo=False : on affiche que la sortie
+```
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(StatsBombR)
+library(extrafont)
+library(MASS)
+library(dplyr)
+library(plotly)
+library(stringr)
+library(ggplot2)
+library(writexl)
+library(readxl)
+library(gridExtra)
+
+
+
+
+```
+
+\newpage
+
+# Introduction
+
+  Blalblablabla
+  
+  
+```{r, include=FALSE}
+# World Cup 2023 (id 72)
+WC2023 <- FreeCompetitions() %>%
+filter(competition_id==72 & season_name=="2023")
+
+# Games availables in WC2023
+Matches <- FreeMatches(WC2023)
+```
+
+```{r, include=FALSE,eval=F}
+
+# Events for the games of the WC2023
+WC2023_dataframe <- free_allevents(MatchesDF = Matches, Parallel = T)
+WC2023_dataframe = allclean(WC2023_dataframe)
+
+```
+
+
+```{r, include=F}
+
+# Lire le fichier CSV dans R
+#write.csv(WC2023_dataframe, "WC2023_dataframe.csv", row.names = FALSE)
+
+WC2023_dataframe <- read.csv("WC2023_dataframe.csv")
+
+```
+
+
+
+```{r,, include=FALSE}
+WC2023_dataframe <- WC2023_dataframe %>%
+  mutate(team.name = str_remove(team.name, " Women's"))
+
+WC2023_dataframe <- WC2023_dataframe %>%
+  mutate(possession_team.name = str_remove(possession_team.name, " Women's"))
+```
+
+# Descriptive data analysis 
+
+ We begin by interpreting the elements of the data set.\
+It is made up of multiple observations with different variables.\
+
+## Analysis of successful shots according to country
+   First, we look at the number of goals and shots in all matches for each team.\
+Figure \ref{fig:fig1} shows a visualization of these results.\
+
+
+```{r, include=FALSE}
+#Number of goals and shots in all games for each team
+shots_goals = WC2023_dataframe %>%
+group_by(team.name) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+```
+
+```{r fig1 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig1}Diagram of the number of goals and shots in all matches for each team",fig.height=4.5}
+#Let's make a graph
+ggplot(shots_goals, aes(y = reorder(as.factor(team.name), goals))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Number of goals and shots in all games for each team",
+       y = "Team",
+       x = "Number") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green"))
+```
+
+It would be interesting to make this graph on the average number of goals and shots, as some teams have more games than others, distorting the results a little.
+
+Figure \ref{fig:fig2} shows a visualization of the percentage of shots leading to a goal.\
+
+```{r fig2 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig2}Diagram of the percentage of shots leading to a goal",fig.height=4,fig.align='center'}
+
+ggplot(shots_goals, aes(y = reorder(as.factor(team.name), goals/shots*100))) +
+  geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Percentage of shots leading to a goal",
+       y = "Team",
+       x = "Percentage")
+```
+
+\vspace{3pt}
+
+We now would like to focus on France team.\
+Figure \ref{fig:fig3} shows the results.\
+
+```{r,include=F}
+#Number of goals and shots in each match for both teams
+shots_goals_all_matches = WC2023_dataframe %>%
+group_by(match_id) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+
+```
+
+```{r,include=F}
+#We display ids of all France matches
+Id_France = WC2023_dataframe%>% filter(team.name=="France")
+match_ids_france=unique(Id_France$match_id)
+print(match_ids_france)
+```
+
+
+```{r,include=F}
+
+#For each French match, the total number of shots and goals for the 2 teams (France+adversary) is displayed.
+
+
+france_goals <- shots_goals_all_matches %>%
+  filter(match_id %in% match_ids_france)
+
+print(france_goals)
+```
+
+```{r,include=F}
+
+ggplot(france_goals, aes(y = as.factor(match_id))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Number of shots and goals for each French match",
+       y = "Match_id",
+       x = "Number") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green"))
+  
+```
+
+
+
+```{r,include=F}
+ggplot(france_goals, aes(y = reorder(as.factor(match_id), goals/shots*100))) +
+  geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Percentage of shots on goal in France matches",
+       y = "Match",
+       x = "Percentage")
+
+#Il faut ordonner par date pour avoir l'évolution de la stratégie au cours de la compétition
+
+
+```
+
+```{r,include=F}
+
+#We want to know which goals come from France
+shots_goals_France_all_matches = WC2023_dataframe %>%
+filter(team.name=="France") %>%
+group_by(match_id) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+
+print (shots_goals_France_all_matches)
+
+```
+
+
+
+```{r fig3 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig3}Diagram of the number of shots and goals for each French and percentage",fig.height=2,fig.align='center'}
+
+g1=ggplot(shots_goals_France_all_matches, aes(y = as.factor(match_id))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Numbers for French matches",
+       y = "Match_id",
+       x = "Number") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green")) 
+
+
+g2=ggplot(shots_goals_France_all_matches, aes(y = as.factor(match_id))) +
+  geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Percentage in France matches",
+       y = "Match",
+       x = "Percentage") 
+
+#Order from bottom to top: 1st match to last
+grid.arrange(g1,g2,ncol=2)
+```
+\clearpage
+ 
+## Analysis of successful shots according to different variables  
+
+We first look at the type of shots.\
+
+```{r,include=F}
+#Number of goals and shots in all matches by type of shot
+shots_goals_formation = WC2023_dataframe %>%
+group_by(shot.type.name) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+
+shots_goals_formation=shots_goals_formation[-c(5),]
+```
+
+```{r fig4 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig4}Diagram of the number of shots and goals for each type of shot",fig.height=2,fig.align='center'}
+ggplot(shots_goals_formation, aes(y = reorder(as.factor(shot.type.name), goals))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Number of shots and goals for each type of shot",
+       y = "type",
+       x = "Number") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green"))
+```
+
+
+  We know would like to see if the technique of shot is significant.\
+
+```{r,include=F}
+#Number of shots and goals for each technique of shot
+shots_goals_technique = WC2023_dataframe %>%
+group_by(shot.technique.name) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+
+#On enlève la ligne NA
+
+shots_goals_technique=shots_goals_technique[-c(8),]
+```
+
+```{r fig5 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig5}Diagram of the number of shots and goals for each technique of shot",fig.height=2,fig.pos="h",fig.align='center'}
+
+ggplot(shots_goals_technique, aes(y = reorder(as.factor(shot.technique.name), goals))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Number of shots and goals for each technique of shot",
+       y = "Technique of shot",
+       x = "Number") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green"))
+```
+
+Finally, is the variable body_zone_used relevant ?
+
+```{r,include=F}
+#Number of goals and shots over all matches according to body zone used
+shots_goals_part = WC2023_dataframe %>%
+group_by(shot.body_part.name) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+shots_goals_part=shots_goals_part[-c(5),]
+
+```
+
+```{r fig6 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig6}Diagram of the number of goals and shots according to body zone used",fig.height=2,fig.pos="h"}
+
+ggplot(shots_goals_part, aes(y = reorder(as.factor(shot.body_part.name), goals))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Number of goals and shots according to body zone used",
+       y = "Body zone",
+       x = "Number") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green")) 
+```
+\clearpage
+
+# Models analysis
+
+We wanted to create our own xG model. To do that we developed different models, finding the most relevant variables to predict goals.\
+
+```{r,include=F}
+#We create a df with just the shots
+
+shots = WC2023_dataframe %>%
+ filter(type.name=="Shot")
+```
+
+We run a logistic regression model: we want the output to be 0 or 1 depending on whether the shot turns into a goal.\
+
+The first model keeps the variables studied previously : body part, technique, type of shot. \
+
+
+```{r,include=F}
+
+df_model_1 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name)
+df_model_1$shot.outcome.name <- ifelse(df_model_1$shot.outcome.name == "Goal", 1, 0)
+
+
+```
+
+```{r, include = F}
+#Testing regression without interaction
+
+glm.model_1<-glm(shot.outcome.name~ . ,data=df_model_1,family=binomial(link="logit"))
+summary(glm.model_1)
+```
+
+```{r,include=F}
+#We see a skewed shot.type.namePenalty because the corner modality is taken as reference and, given that there were no shots or goals during the competition, the model considers 100% success for the corner modality.
+
+
+#We change the reference modality from “corner” to “penalty”.
+df_model_1_modif=df_model_1
+df_model_1_modif$shot.type.name <- relevel(as_factor(df_model_1_modif$shot.type.name), ref = "Penalty")
+
+glm.model_1_modif <- glm(shot.outcome.name ~ . , data = df_model_1_modif, family = binomial(link = "logit"))
+summary(glm.model_1_modif)
+
+```
+
+```{r,include=F}
+#We can see that Open Play and Free Kick are less likely to result in a goal than a penalty kick. The corner remains distorted
+```
+
+
+$R^2$ for the model without interaction is :\
+
+```{r,echo=F}
+#R2 calculation:
+print(1-(glm.model_1$deviance/glm.model_1$null.deviance))
+
+```
+
+```{r,include=F}
+#Testing regression with interaction
+glm.model_1_interac<-glm(shot.outcome.name~ .^2 ,data=df_model_1,family=binomial(link="logit"))
+summary(glm.model_1_interac)
+#A lot of NA because some interactions are impossible (e.g. volleyball restart on a penalty kick).
+
+```
+$R^2$ for the model with interaction is :\
+
+```{r,echo=F}
+#R2 calculation:
+print(1-(glm.model_1_interac$deviance/glm.model_1_interac$null.deviance))
+```
+
+We make a model with the given expected goal as variable.\
+
+
+```{r,include=F}
+df_model_2 <- dplyr::select(shots,shot.statsbomb_xg,shot.outcome.name)
+df_model_2$shot.outcome.name <- ifelse(df_model_2$shot.outcome.name == "Goal", 1, 0)
+
+glm.model_2<-glm(shot.outcome.name~ . ,data=df_model_2,family=binomial(link="logit"))
+summary(glm.model_2)
+
+```
+We would therefore like to find a model with an $R^2$ value close to this model, i.e. an $R^2$ close to :
+```{r,echo=F}
+print(1-(glm.model_2$deviance/glm.model_2$null.deviance))
+
+```
+
+We do the same logistical model but with the position added : location.x and location.y
+
+```{r,include=F}
+
+df_model_3 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.y)
+df_model_3$shot.outcome.name <- ifelse(df_model_3$shot.outcome.name == "Goal", 1, 0)
+
+```
+
+```{r,include=F}
+#Model without interaction
+glm.model_3<-glm(shot.outcome.name~ . ,data=df_model_3,family=binomial(link="logit"))
+summary(glm.model_3)
+```
+
+We test a regression without interaction, and obtain an $R^2$ of :
+
+```{r,echo=F}
+print(1-(glm.model_3$deviance/glm.model_3$null.deviance))
+
+```
+
+With interaction, and get an $R^2$ of :
+```{r,include=F}
+#Model with interaction
+
+glm.model_3_interac<-glm(shot.outcome.name~ .^2 ,data=df_model_3,family=binomial(link="logit"))
+summary(glm.model_3_interac)
+```
+
+```{r,echo=F}
+print(1-(glm.model_3_interac$deviance/glm.model_3_interac$null.deviance))
+```
+With interactions, we targeted the main variables to obtain a good model and an $R^2$ as close to 1 as possible.
+
+
+We run several tests to see which variables are significant in the model. 
+
+```{r,echo=F}
+
+model_simp<-glm(shot.outcome.name~ (location.x +location.y + shot.body_part.name+shot.type.name)^2 ,data=df_model_3,family=binomial(link="logit"))
+anova(model_simp,glm.model_3_interac,test="Chisq")
+
+```
+
+We see that we can remove the technique because p_value>0.05 so we can accept the sub-model with a 95% level.
+
+```{r,include=F}
+summary(model_simp)
+```
+
+For this model we obtain an $R^2$ of :
+
+```{r,echo=F}
+print(1-(model_simp$deviance/model_simp$null.deviance))
+```
+
+The $R^2$ is no greater than for model 3 with interactions: this is normal because the $R^2$ favors models with many variables.
+We should look at other variables such as AIC, which is minimum for model 3 without interactions.
+
+```{r,include=F}
+#We'll compare the fitted values (probability of being a goal), with the expected goals.
+glm.model_3$fitted.values
+#we have numbers between 0 and 1 so this is good.
+
+```

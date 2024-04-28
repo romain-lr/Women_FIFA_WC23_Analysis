@@ -1,0 +1,968 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+```{r}
+library(StatsBombR)
+library(plotly)
+library(reshape2)
+library(ggsci)
+library(viridis)
+```
+
+```{r}
+#AllCompet <- FreeCompetitions() %>% filter(competition_name=="Women's World Cup" & season_name=="2023")
+#AllMatches <- FreeMatches(AllCompet)
+
+#WC2023_dataframe <- free_allevents(MatchesDF = AllMatches, Parallel = T)
+#WC2023_dataframe = allclean(WC2023_dataframe)
+
+# Lire le fichier CSV dans R
+#write.csv(free_allevents(WC2023_dataframe), "WC2023_dataframe.csv", row.names = FALSE)
+
+#WC2023_dataframe <- read.csv("WC2023_dataframe.csv")
+
+```
+
+
+```{r}
+AllCompet <- FreeCompetitions() %>% filter(competition_name=="Women's World Cup" & season_name=="2023")
+  AllMatches <- FreeMatches(AllCompet)
+
+AllMatches <- AllMatches  %>%  mutate(away_team.away_team_name = gsub(" Women's","",away_team.away_team_name),
+                                      home_team.home_team_name = gsub(" Women's","",home_team.home_team_name),
+                                      .keep="unused")
+
+
+AllMatches <- AllMatches  %>%  mutate(away_team.away_team_name = gsub(" ","",away_team.away_team_name),
+                                      home_team.home_team_name = gsub(" ","",home_team.home_team_name),
+                                      .keep="unused")
+
+Events <- free_allevents(AllMatches)
+Shots_All <- Events %>% filter(type.name=="Shot")
+
+Shots_All <- Shots_All  %>%  mutate(team = gsub(" ","",team.name),
+                                      .keep="unused")
+```
+
+```{r}
+#view(Goal_All)
+#view(Shots_All)
+#view(AllMatches)
+#view(Events)
+```
+
+#*Goals Visualization*
+##Data formatting
+```{r}
+Shots <- subset(Shots_All, select = c(shot.outcome.name,team, player.name))
+
+Shots <- Shots  %>%  mutate(player = player.name,
+                                      outcome = case_when(shot.outcome.name!="Goal" ~ 0,
+                                                         shot.outcome.name=="Goal" ~ 1),
+                                      team = gsub("Women's","",team),
+                                      .keep="unused")
+
+
+#view(Shots)
+```
+
+```{r}
+Semifinals <- AllMatches %>% filter(competition_stage.name=="Semi-finals")
+pays_semifinals <- subset(Semifinals, select = c(home_team.home_team_name,away_team.away_team_name))
+pays_semifinals <- melt(pays_semifinals) %>% distinct() %>% as.list() %>% unlist() %>% sort() #select all teams
+pays_semifinals_list <- melt(pays_semifinals) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #select all teams
+#view(pays_semifinals)
+
+Quarterfinals <- AllMatches %>% filter(competition_stage.name=="Quarter-finals")
+pays_quarterfinals <- subset(Quarterfinals, select = c(home_team.home_team_name,away_team.away_team_name))
+pays_quarterfinals <- melt(pays_quarterfinals) %>% distinct() %>% as.list() %>% unlist() %>% sort() #select all teams
+pays_quarterfinals <- setdiff(pays_quarterfinals, pays_semifinals)
+pays_quarterfinals_list <- melt(pays_quarterfinals) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #select all teams
+#view(pays_quarterfinals)
+
+Round_of_16 <- AllMatches %>% filter(competition_stage.name=="Round of 16")
+pays_r16 <- subset(Round_of_16, select = c(home_team.home_team_name,away_team.away_team_name))
+pays_r16 <- melt(pays_r16) %>% distinct() %>% as.list() %>% unlist() %>% sort() #select all teams
+pays_r16 <- setdiff(pays_r16, union(pays_quarterfinals, pays_semifinals))
+pays_r16_list <- melt(pays_r16) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #select all teams
+#view(pays_r16)
+
+Group_Stage <- AllMatches %>% filter(competition_stage.name=="Group Stage")
+pays_gs <- subset(Group_Stage, select = c(home_team.home_team_name,away_team.away_team_name))
+pays_gs <- melt(pays_gs) %>% distinct() %>% as.list() %>% unlist() %>% sort() #select all teams
+pays_r8 <- union(pays_quarterfinals, pays_semifinals)
+pays_gs <- setdiff(pays_gs, union(pays_r16, pays_r8))
+pays_gs_list <- melt(pays_gs) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #select all teams
+#view(pays_gs)
+
+# Créer un data frame pour l'échelle de couleur
+color_scale_data_GS <- data.frame(team = pays_gs, group = "8-GS")
+color_scale_data_R16 <- data.frame(team = pays_r16, group = "7-R16")
+color_scale_data_Quarter <- data.frame(team = pays_quarterfinals, group = "6-Quarterfinals")
+color_scale_data_Semi <- data.frame(team = pays_semifinals, group = "5-Semifinals")
+color_scale_data_4 <- data.frame(team = "Australia", group = "4th")
+color_scale_data_3 <- data.frame(team = "Sweden", group = "3rd")
+color_scale_data_2 <- data.frame(team = "England", group = "2nd")
+color_scale_data_1 <- data.frame(team = "Spain", group = "1st")
+color_scale_data <- bind_rows(color_scale_data_GS, 
+                              color_scale_data_R16, 
+                              color_scale_data_Quarter, 
+                              color_scale_data_Semi)
+color_scale_2 <- bind_rows(color_scale_data_GS, 
+                              color_scale_data_R16, 
+                              color_scale_data_Quarter, 
+                              color_scale_data_4, color_scale_data_3, color_scale_data_2, color_scale_data_1)
+
+#view(color_scale_data)
+```
+
+##Player-by-player visualization
+
+```{r}
+df_shots_total <- aggregate(x = Shots$outcome, by = list(Shots$player), FUN = length)
+df_shots_succeed <- aggregate(x = Shots$outcome, by = list(Shots$player), FUN = sum)
+
+df <- merge(df_shots_succeed, df_shots_total, by=c("Group.1")) %>% mutate(player = Group.1,
+                                                                               completed_shots = x.x,
+                                                                               total_shots = x.y,
+                                                                               .keep="unused")
+
+df1 <- subset(Shots, selec = c(player, team))
+#view(df1)
+
+df <- merge(df1, df, by=c("player"))
+#view(df)
+df <- df %>% distinct()
+
+df <- df %>% mutate(shots_completion_ratio = completed_shots/total_shots,
+                    total_shots = total_shots,
+                    total_goals = completed_shots,
+                    .keep = "unused")
+
+print(length(df$player))
+#view(df)
+
+df <- df[df$total_shots>=1,] # Removing players that attempted less than 2 shots
+
+print(length(df$player)) # 398 players attempted at least 1 shots in the WC
+
+#We now have a df containing every player that shot at least once in the World cup, associated with how many shots they attempted, and their ratio of successful shots
+
+#pays = c("France", "England", "Spain", "Switzerland") #Select teams we wish to observe
+pays <- melt(df$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #Select all teams
+
+df_player <- df[df$team %in% pays,]
+mean_shots_completion_ratio = mean(df$shots_completion_ratio)
+mean_shots_nb = mean(df$total_shots)
+
+
+df[nrow(df) + 1,] <- list("Mean Player", "Mean Player", mean_shots_nb, mean_shots_completion_ratio)
+#view(df)
+
+df$group <- ifelse(df$team %in% pays_gs, "8-GS",
+                              ifelse(df$team %in% pays_r16, "7-R16",
+                                     ifelse(df$team %in% pays_quarterfinals, "6-Quarterfinals","5-Semifinals")))
+df$groupv2 <- ifelse(df$team %in% pays_gs, "8-GS",
+                              ifelse(df$team %in% pays_r16, "7-R16",
+                                     ifelse(df$team %in% pays_quarterfinals, "6-Quarterfinals",
+                                            ifelse(df$team == "Australia", "4th",
+                                                   ifelse(df$team == "Sweden", "3rd",
+                                                          ifelse(df$team == "England", "2nd",
+                                                                 ifelse(df$team=="Spain","1st","NA")))))))
+#view(df)
+#p <- ggplot(df, aes(total_shots, shots_completion_ratio, label = paste("player =", player, ", team =", team ), color = group)) + geom_point() +  scale_colour_manual(values = colors)
+#Couleur de base
+#p <- ggplot(df, aes(total_shots, shots_completion_ratio, label = paste("player =", player, ", team =", team ), color = team)) + geom_point()
+
+p <- ggplot(df, aes(total_shots, shots_completion_ratio, label = paste("player =", player, ", team =", team ), color = groupv2)) + geom_point() +  scale_color_viridis(discrete=TRUE)
+ggplotly(p)
+```
+
+##Team-by-team visualization
+
+```{r}
+df_shots_total <- aggregate(x = Shots$outcome, by = list(Shots$player), FUN = length)
+df_shots_succeed <- aggregate(x = Shots$outcome, by = list(Shots$player), FUN = sum)
+
+df <- merge(df_shots_succeed, df_shots_total, by=c("Group.1")) %>% mutate(player = Group.1,
+                                                                               completed_shots = x.x,
+                                                                               total_shots = x.y,
+                                                                               .keep="unused")
+
+df1 <- subset(Shots, selec = c(player, team))
+#view(df1)
+
+df <- merge(df1, df, by=c("player"))
+#view(df)
+df <- df %>% distinct()
+
+df <- df %>% mutate(shots_completion_ratio = completed_shots/total_shots,
+                    total_shots = total_shots,
+                    total_goals = completed_shots,
+                    .keep = "unused")
+
+print(length(df$player))
+#view(df)
+
+df <- df[df$total_shots>=1,] # Removing players that attempted less than 1 shots
+
+print(length(df$player)) # 398 players attempted at least 1 shots in the WC
+
+#We now have a df containing every player that shots at least once in the World cup, associated with how many shots they attempted, and their ratio of successful shots
+
+#pays = c("France", "England", "Spain", "Switzerland") #Countries we wish to observe
+#pays = c("Switzerland")
+pays <- melt(df$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #select all teams
+
+#view(pays)
+
+df_pays <- df[df$team %in% pays,]
+
+for (i in 0:length(pays))
+  df_pays[nrow(df_pays) + 1,] <- list(paste("",pays[i]), paste("", pays[i]), 
+                                      sum(df_pays$total_shots[df_pays$team == pays[i]]), 
+                                      0,
+                                      sum(df_pays$total_goals[df_pays$team == pays[i]]))
+
+df_pays <- subset(df_pays, select = -c(player))
+
+n <- length(pays)
+
+#view(df_pays)
+
+dftail <- df_pays[(nrow(df_pays)-(n - 1)):nrow(df_pays),] %>% mutate(team = gsub(" ","",team),
+                                                                     shots_completion_ratio = total_goals/total_shots,
+                                                                     total_shots = total_shots,
+                                                                     total_goals = total_goals,
+                                                                     .keep = "unused")
+
+#pays_gs <- pays_gs %>% mutate(team=gsub(" ","",x))
+
+dftail$group <- ifelse(dftail$team %in% pays_gs, "8-GS",
+                              ifelse(dftail$team %in% pays_r16, "7-R16",
+                                     ifelse(dftail$team %in% pays_quarterfinals, "6-Quarterfinals","5-Semifinals")))
+dftail$groupv2 <- ifelse(dftail$team %in% pays_gs, "8-GS",
+                              ifelse(dftail$team %in% pays_r16, "7-R16",
+                                     ifelse(dftail$team %in% pays_quarterfinals, "6-Quarterfinals",
+                                            ifelse(dftail$team == "Australia", "4th",
+                                                   ifelse(dftail$team == "Sweden", "3rd",
+                                                          ifelse(dftail$team == "England", "2nd",
+                                                                 ifelse(dftail$team=="Spain","1st","NA")))))))
+
+#view(dftail)
+
+p <- ggplot(dftail, aes(total_shots, shots_completion_ratio, label=team, color = groupv2)) + geom_text(aes(fontface=2)) + scale_color_viridis(discrete=TRUE)
+
+ggplotly(p)
+```
+##Comparaison xG to True Goal Ratio visualization
+
+```{r}
+Shots_exp <- subset(Shots_All, select = c(shot.statsbomb_xg,team, player.name))
+
+Shots_exp <- Shots_exp  %>%  mutate(player = player.name,
+                                      xg = shot.statsbomb_xg,
+                                      team = gsub("Women's","",team),
+                                      .keep="unused")
+
+#view(Shots_exp)
+
+df_shots_exp_succeed <- aggregate(x = Shots_exp$xg, by = list(Shots_exp$player), FUN = sum)
+#df_shots_exp_succeed <- df_shots_exp_succeed %>% mutate(player=Group.1, 
+#                               df_shots_exp_ratio=df_shots_exp_succeed/df_shots_exp_total)
+
+#view(df_shots_exp_succeed)
+colnames(df_shots_exp_succeed) <- c("player", "xG")
+#view(df)
+#view(df_shots_exp_succeed)
+df2 <- merge(df, df_shots_exp_succeed, by=c("player"))
+df2 <- df2 %>% mutate(xG_ratio = df_shots_exp_succeed$xG/total_shots)
+#,                  .keep = "unused")
+
+#view(df2)
+
+print(length(df2$player))
+#view(df2)
+
+df2 <- df2[df2$total_shots>=2,] # Removing players that attempted less than 1 shots
+
+print(length(df2$player)) # 398 players attempted at least 1 shots in the WC
+
+#We now have a df containing every player that shots at least once in the World cup, associated with their xg
+
+```
+
+###Comparaison xG to True Goal Ratio visualization - Players
+
+```{r}
+pays = c("France", "England", "Spain", "Switzerland") #Select teams we wish to observe
+pays <- melt(df$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #Select all teams
+
+df2_player <- df2[df2$team %in% pays,]
+mean_shots_completion_ratio = mean(df2_player$shots_completion_ratio)
+mean_shots_nb = mean(df2_player$total_shots)
+mean_goals_nb = mean(df2_player$total_goals)
+mean_shots_xG = mean(df2_player$xG)
+mean_shots_xG_ratio = mean(df2_player$xG_ratio)
+
+df2_player[nrow(df2_player) + 1,] <- list("Mean Player", "Mean Player", mean_shots_nb, mean_shots_completion_ratio, mean_goals_nb, mean_shots_xG, mean_shots_xG_ratio)
+
+#view(df2_player)
+
+df2_player$group <- ifelse(df2_player$team %in% pays_gs, "8-GS",
+                              ifelse(df2_player$team %in% pays_r16, "7-R16",
+                                     ifelse(df2_player$team %in% pays_quarterfinals, "6-Quarterfinals","5-Semifinals")))
+df2_player$groupv2 <- ifelse(df2_player$team %in% pays_gs, "8-GS",
+                              ifelse(df2_player$team %in% pays_r16, "7-R16",
+                                     ifelse(df2_player$team %in% pays_quarterfinals, "6-Quarterfinals",
+                                            ifelse(df2_player$team == "Australia", "4th",
+                                                   ifelse(df2_player$team == "Sweden", "3rd",
+                                                          ifelse(df2_player$team == "England", "2nd",
+                                                                 ifelse(df2_player$team=="Spain","1st","NA")))))))
+
+
+#view(df2_player)
+
+p <- ggplot(df2_player, aes(xG_ratio, shots_completion_ratio, size = total_shots, label = player, colour=groupv2)) + 
+    geom_point(shape=21) + geom_abline(intercept = 0, slope = 1, linetype = "dashed") + scale_color_viridis(discrete=TRUE) #+ scale_y_log10()
+
+ggplotly(p)
+```
+###Comparaison xG to True Goal Ratio visualization - Pays par Pays
+
+
+```{r}
+#pays2 = c("France", "England", "Spain", "Switzerland") #Countries we wish to observe
+pays2 <- melt(df2$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #select all teams
+
+#view(pays2)
+
+df2_pays <- df2[df2$team %in% pays2,]
+#view(df2_pays)
+
+for (i in 0:length(pays2))
+  df2_pays[nrow(df2_pays) + 1, ] <- list(paste("",pays2[i]), paste("", pays2[i]),
+                                        sum(df2_pays$total_shots[df2_pays$team == pays2[i]]),
+                                        sum(df2_pays$shots_completion_ratio[df2_pays$team == pays2[i]]),
+                                        sum(df2_pays$total_goals[df2_pays$team == pays2[i]]),
+                                        sum(df2_pays$xG[df2_pays$team == pays2[i]]),
+                                        0)
+  
+df2_pays <- subset(df2_pays, select = -c(player))
+
+#view(df2_pays)
+n <- length(pays2)
+
+df2tail <- df2_pays[(nrow(df2_pays)-(n - 1)):nrow(df2_pays),]  %>% mutate(team = gsub(" ","",team),
+                                                                      shots_completion_ratio = total_goals/total_shots,
+                                                                     total_shots = total_shots,
+                                                                     total_goals = total_goals,
+                                                                     xG = xG,
+                                                                     xG_ratio = xG/total_shots,
+                                                                     .keep = "unused")
+
+#view(df2tail)
+
+df2tail$group <- ifelse(df2tail$team %in% pays_gs, "8-GS",
+                              ifelse(df2tail$team %in% pays_r16, "7-R16",
+                                     ifelse(df2tail$team %in% pays_quarterfinals, "6-Quarterfinals","5-Semifinals")))
+df2tail$groupv2 <- ifelse(df2tail$team %in% pays_gs, "8-GS",
+                              ifelse(df2tail$team %in% pays_r16, "7-R16",
+                                     ifelse(df2tail$team %in% pays_quarterfinals, "6-Quarterfinals",
+                                            ifelse(df2tail$team == "Australia", "4th",
+                                                   ifelse(df2tail$team == "Sweden", "3rd",
+                                                          ifelse(df2tail$team == "England", "2nd",
+                                                                 ifelse(df2tail$team=="Spain","1st","NA")))))))
+
+
+#view(df2tail)
+
+
+p <- ggplot(df2tail, aes(xG_ratio, shots_completion_ratio, size = total_shots, label=team, color = groupv2)) + geom_text(aes(fontface=3)) + geom_abline(intercept = 0, slope = 1, linetype = "dashed") + scale_color_viridis(discrete=TRUE)
+
+ggplotly(p)
+```
+###Comparaison bewteen Statsbomb xG Model and our Model
+
+```{r}
+#On créé un nouveau df avec toutes les variables précédentes + position du gardien
+df_model_6 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.y,under_pressure,location.x.GK,location.y.GK)
+df_model_6$shot.outcome.name <- ifelse(df_model_6$shot.outcome.name == "Goal", 1, 0)
+
+#On remplace les NA par "false" dans la colonne under_pressure
+df_model_6$under_pressure <- ifelse(is.na(df_model_6$under_pressure), FALSE, df_model_6$under_pressure)
+
+#On remarque que pour les penaltys on n'a pas de valeur quand à la position du gardien sur le terrain donc on met qu'il se situe sur sa ligne donc à 120 dans la colonne location.x.GK
+df_model_6$location.x.GK <- ifelse(is.na(df_model_6$location.x.GK), 120.0, df_model_6$location.x.GK)
+
+#On teste le modèle avec seulement la variable location.x.GK
+glm.model_6_location.x.GK <- glm(shot.outcome.name ~ location.x.GK, data = df_model_6, family = binomial(link = "logit"))
+summary(glm.model_6_location.x.GK)
+print(1-(glm.model_6_location.x.GK$deviance/glm.model_6_location.x.GK$null.deviance))
+```
+On a un effet significatif de la position du goal en x, AIC très bas 
+
+```{r}
+#On remarque que pour les penaltys on n'a pas de valeur quand à la position du gardien sur le terrain donc on met qu'il se situe sur sa ligne donc à 120 dans la colonne location.y.GK
+df_model_6$location.y.GK <- ifelse(is.na(df_model_6$location.y.GK), 40.0, df_model_6$location.y.GK)
+
+#On teste le modèle avec seulement la variable location.y.GK
+glm.model_6_location.y.GK <- glm(shot.outcome.name ~ location.y.GK, data = df_model_6, family = binomial(link = "logit"))
+summary(glm.model_6_location.y.GK)
+
+print(1-(glm.model_6_location.y.GK$deviance/glm.model_6_location.y.GK$null.deviance))
+```
+Variable de la position du gardien en y significative, AIC un peu plus élevé que pour position en x
+
+```{r}
+#On teste le modèle avec toutes les varaibles du df6 sans intéraction
+glm.model_6 <- glm(shot.outcome.name ~ ., data = df_model_6, family = binomial(link = "logit"))
+summary(glm.model_6)
+
+print(1-(glm.model_6$deviance/glm.model_6$null.deviance))
+
+```
+AIC très faible, modèle bien
+
+
+```{r}
+#On cherche quel est le meilleur modèle (qui minimise l'AIC)
+bestmod =step(glm.model_6, trace=FALSE)
+summary(bestmod)
+```
+
+```{r}
+#view(df_model_6)
+# Prédire les résultats pour chaque passe dans le dataframe
+xG_predi <- predict(bestmod, newdata = df_model_6, type = "response")
+
+# Ajouter les probabilités de réussite d'une passe au dataframe original
+df_model_6$xG_predi <- xG_predi
+
+# Afficher le dataframe avec les prédictions
+print(df_model_6)
+```
+```{r}
+#view(Shots_All)
+Shots_exp_predi <- subset(Shots_All, select = c(team, player.name,shot.statsbomb_xg))
+Shots_exp_predi <- Shots_exp_predi  %>%  mutate(player = player.name,
+                                      team = gsub("Women's","",team),
+                                      .keep="unused")
+# Calculer les probabilités prédites de réussite de chaque passe (xP)
+Shots_exp_predi$xG_predi <- xG_predi
+#view(xG_predi)
+#view(Shots_exp_predi)
+
+df_shot_xG_succeed <- aggregate(x = Shots_exp_predi$shot.statsbomb_xg, by = list(Shots_exp_predi$player), FUN = sum)
+df_shot_xGpredi_succeed <- aggregate(x = Shots_exp_predi$xG_predi, by = list(Shots_exp_predi$player), FUN = sum)
+
+colnames(df_shot_xG_succeed) <- c("player", "xG")
+colnames(df_shot_xGpredi_succeed) <- c("player", "xG_predi")
+#view(df_shot_xG_succeed)
+#view(df_shot_xGpredi_succeed)
+
+
+df2 <- merge(df, df_shots_exp_succeed, by=c("player"))
+#view(df2)
+df2 <- df2 %>% mutate(xG_ratio = df_shots_exp_succeed$xG/total_shots)
+#,                  .keep = "unused")
+
+df2 <- subset(df2, select = -xG)
+df3 <- merge(df2, df_shot_xG_succeed, by=c("player"))
+#view(df3)
+df3 <- merge(df3, df_shot_xGpredi_succeed, by=c("player"))
+
+
+df3 <- df3 %>% mutate(xG_ratio = df_shot_xG_succeed$xG/total_shots,
+                      xG_predi_ratio = df_shot_xGpredi_succeed$xG_predi/total_shots,
+                        total_shots=total_shots,
+                        .keep = "unused")
+#view(df2p)
+
+print(length(df3$player))
+
+df3 <- df3[df3$total_shots>=2,] # Removing players that attempted less than 2 shots
+#view(df3)
+print(length(df3$player)) # 279 players attempted at least 2 shots in the WC
+
+#We now have a df containing every player that shots at least once in the World cup, associated with their xg
+```
+
+
+```{r}
+pays = c("France", "England", "Spain", "Switzerland") #Select teams we wish to observe
+pays <- melt(df3$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #Select all teams
+#view(df3)
+df3_player <- df3[df3$team %in% pays,]
+mean_shots_completion_ratio = mean(df3_player$shots_completion_ratio)
+mean_shots_nb = mean(df3_player$total_shots)
+mean_goals_nb = mean(df3_player$total_goals)
+mean_shots_xG = mean(df3_player$xG)
+mean_shots_xG_ratio = mean(df3_player$xG_ratio)
+mean_shots_xG_predi = mean(df3_player$xG_predi)
+mean_shots_xG_predi_ratio = mean(df3_player$xG_predi_ratio)
+
+df3_player[nrow(df3_player) + 1,] <- list("Mean Player", "Mean Player", mean_shots_nb, mean_shots_completion_ratio, mean_goals_nb, mean_shots_xG_ratio, mean_shots_xG, mean_shots_xG_predi, mean_shots_xG_predi_ratio)
+
+#view(df3_player)
+
+df3_player$group <- ifelse(df3_player$team %in% pays_gs, "8-GS",
+                              ifelse(df3_player$team %in% pays_r16, "7-R16",
+                                     ifelse(df3_player$team %in% pays_quarterfinals, "6-Quarterfinals","5-Semifinals")))
+df3_player$groupv2 <- ifelse(df3_player$team %in% pays_gs, "8-GS",
+                              ifelse(df3_player$team %in% pays_r16, "7-R16",
+                                     ifelse(df3_player$team %in% pays_quarterfinals, "6-Quarterfinals",
+                                            ifelse(df3_player$team == "Australia", "4th",
+                                                   ifelse(df3_player$team == "Sweden", "3rd",
+                                                          ifelse(df3_player$team == "England", "2nd",
+                                                                 ifelse(df3_player$team=="Spain","1st","NA")))))))
+
+
+#view(df3_player)
+
+p <- ggplot(df3_player, aes(xG_predi_ratio, xG_ratio, size = total_shots, label = player, colour=groupv2)) + 
+    geom_point(shape=21) + geom_abline(intercept = 0, slope = 1, linetype = "dashed") + scale_color_viridis(discrete=TRUE) #+ scale_y_log10()
+
+ggplotly(p)
+```
+```{r}
+#pays = c("France", "England", "Spain", "Switzerland") #Countries we wish to observe
+pays <- melt(df3$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #select all teams
+
+#view(pays)
+
+df3_pays <- df3[df3$team %in% pays,]
+#view(df3_pays)
+
+for (i in 0:length(pays))
+  df3_pays[nrow(df3_pays) + 1, ] <- list(paste("",pays[i]), paste("", pays[i]),
+                                        sum(df3_pays$total_shots[df3_pays$team == pays[i]]),
+                                        sum(df3_pays$shots_completion_ratio[df3_pays$team == pays[i]]),
+                                        sum(df3_pays$total_goals[df3_pays$team == pays[i]]),
+                                        sum(df3_pays$xG_ratio[df3_pays$team == pays[i]]),
+                                        sum(df3_pays$xG[df3_pays$team == pays[i]]),
+                                        sum(df3_pays$xG_predi[df3_pays$team == pays[i]]),
+                                        sum(df3_pays$xG_predi_ratio[df3_pays$team == pays[i]]),
+                                        0)
+  
+df3_pays <- subset(df3_pays, select = -c(player))
+
+#view(df3_pays)
+n <- length(pays)
+
+df3tail <- df3_pays[(nrow(df3_pays)-(n - 1)):nrow(df3_pays),]  %>% mutate(team = gsub(" ","",team),
+                                                                    shots_completion_ratio = total_goals/total_shots,
+                                                                    total_shots = total_shots,
+                                                                    total_goals = total_goals,
+                                                                    xG = xG,
+                                                                    xG_ratio = xG/total_shots,
+                                                                    xG_predi = xG_predi,
+                                                                    xG_predi_ratio = xG_predi/total_shots,
+                                                                    .keep = "unused")
+#view(df3tail)
+
+df3tail$group <- ifelse(df3tail$team %in% pays_gs, "8-GS",
+                              ifelse(df3tail$team %in% pays_r16, "7-R16",
+                                     ifelse(df3tail$team %in% pays_quarterfinals, "6-Quarterfinals","5-Semifinals")))
+df3tail$groupv2 <- ifelse(df3tail$team %in% pays_gs, "8-GS",
+                              ifelse(df3tail$team %in% pays_r16, "7-R16",
+                                     ifelse(df3tail$team %in% pays_quarterfinals, "6-Quarterfinals",
+                                            ifelse(df3tail$team == "Australia", "4th",
+                                                   ifelse(df3tail$team == "Sweden", "3rd",
+                                                          ifelse(df3tail$team == "England", "2nd",
+                                                                 ifelse(df3tail$team=="Spain","1st","NA")))))))
+
+
+#view(df2ptail)
+
+
+p <- ggplot(df3tail, aes(xG_ratio, xG_predi_ratio, size = total_shots, label=team, color = groupv2)) + geom_text(aes(fontface=3)) + geom_abline(intercept = 0, slope = 1, linetype = "dashed") + scale_color_viridis(discrete=TRUE)
+
+ggplotly(p)
+```
+
+
+#Pass vizualisation
+```{r}
+Passes_All <- Events %>% filter(type.name=="Pass")
+#view(Passes_All)
+Passes_All <- Passes_All  %>%  mutate(team = gsub(" ","",team.name),
+                                      .keep="unused")
+
+#view(Passes_All)
+Pass <- subset(Passes_All, select = c(pass.outcome.name,team, player.name))
+```
+
+```{r}
+Pass <- Pass  %>%  mutate(player = player.name,
+                                      outcome = case_when(is.na(pass.outcome.name) ~ 1,
+                                                         !is.na(pass.outcome.name) ~ 0),
+                                      team = gsub("Women's","",team),
+                                      .keep="unused")
+
+
+
+#View(Passes_All)
+```
+
+##II-Pass - A) Player-by-player visualization
+
+```{r}
+df_pass_total <- aggregate(x = Pass$outcome, by = list(Pass$player), FUN = length)
+df_pass_succeed <- aggregate(x = Pass$outcome, by = list(Pass$player), FUN = sum)
+
+df <- merge(df_pass_succeed, df_pass_total, by=c("Group.1")) %>% mutate(player = Group.1,
+                                                                               completed_pass = x.x,
+                                                                               total_pass = x.y,
+                                                                               .keep="unused")
+
+df1 <- subset(Pass, selec = c(player, team))
+#view(df1)
+
+df <- merge(df1, df, by=c("player"))
+#view(df)
+df <- df %>% distinct()
+
+df <- df %>% mutate(pass_completion_ratio = completed_pass/total_pass,
+                    total_pass = total_pass,
+                    total_pass = completed_pass,
+                    .keep = "unused")
+
+print(length(df$player))
+#view(df)
+
+df <- df[df$total_pass>=1,] # Removing players that attempted less than 1 passes
+
+print(length(df$player)) # 398 players attempted at least 1 pass in the WC
+
+#We now have a df containing every player that shot at least once in the World cup, associated with how many shots they attempted, and their ratio of successful shots
+
+pays = c("France", "England", "Spain", "Switzerland") #Select teams we wish to observe
+#pays <- melt(df$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #Select all teams
+
+df_player <- df[df$team %in% pays,]
+mean_pass_completion_ratio = mean(df$pass_completion_ratio)
+mean_pass_nb = mean(df$total_pass)
+
+
+df[nrow(df) + 1,] <- list("Mean Player", "Mean Player", mean_pass_nb, mean_pass_completion_ratio)
+#view(df)
+
+df$group <- ifelse(df$team %in% pays_gs, "8-GS",
+                              ifelse(df$team %in% pays_r16, "7-R16",
+                                     ifelse(df$team %in% pays_quarterfinals, "6-Quarterfinals","5-Semifinals")))
+df$groupv2 <- ifelse(df$team %in% pays_gs, "8-GS",
+                              ifelse(df$team %in% pays_r16, "7-R16",
+                                     ifelse(df$team %in% pays_quarterfinals, "6-Quarterfinals",
+                                            ifelse(df$team == "Australia", "4th",
+                                                   ifelse(df$team == "Sweden", "3rd",
+                                                          ifelse(df$team == "England", "2nd",
+                                                                 ifelse(df$team=="Spain","1st","NA")))))))
+#view(df)
+#p <- ggplot(df, aes(total_shots, shots_completion_ratio, label = paste("player =", player, ", team =", team ), color = group)) + geom_point() +  scale_colour_manual(values = colors)
+#Couleur de base
+#p <- ggplot(df, aes(total_shots, shots_completion_ratio, label = paste("player =", player, ", team =", team ), color = team)) + geom_point()
+
+p <- ggplot(df, aes(total_pass, pass_completion_ratio, label = paste("player =", player, ", team =", team ), color = groupv2)) + geom_point() +  scale_color_viridis(discrete=TRUE)
+ggplotly(p)
+
+```
+
+##II-Pass - B) Team-by-team visualization
+
+```{r}
+df_pass_total <- aggregate(x = Pass$outcome, by = list(Pass$player), FUN = length)
+df_pass_succeed <- aggregate(x = Pass$outcome, by = list(Pass$player), FUN = sum)
+
+df <- merge(df_pass_succeed, df_pass_total, by=c("Group.1")) %>% mutate(player = Group.1,
+                                                                               completed_pass = x.x,
+                                                                               total_pass = x.y,
+                                                                               .keep="unused")
+
+df1 <- subset(Pass, selec = c(player, team))
+#view(df1)
+
+df <- merge(df1, df, by=c("player"))
+#view(df)
+df <- df %>% distinct()
+
+df <- df %>% mutate(pass_completion_ratio = completed_pass/total_pass,
+                    total_pass = total_pass,
+                    total_pass_succeed = completed_pass,
+                    .keep = "unused")
+
+print(length(df$player))
+#view(df)
+
+df <- df[df$total_pass>=1,] # Removing players that attempted less than 1 pass
+
+print(length(df$player)) # 398 players attempted at least 1 pass in the WC
+
+#We now have a df containing every player that shots at least once in the World cup, associated with how many shots they attempted, and their ratio of successful shots
+
+#pays = c("France", "England", "Spain", "Switzerland") #Countries we wish to observe
+#pays = c("Switzerland")
+pays <- melt(df$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #select all teams
+
+#view(pays)
+
+df_pays <- df[df$team %in% pays,]
+
+for (i in 0:length(pays))
+  df_pays[nrow(df_pays) + 1,] <- list(paste("",pays[i]), paste("", pays[i]), 
+                                      sum(df_pays$total_pass[df_pays$team == pays[i]]), 
+                                      0,
+                                      sum(df_pays$total_pass_succeed[df_pays$team == pays[i]]))
+
+df_pays <- subset(df_pays, select = -c(player))
+
+n <- length(pays)
+
+#view(df_pays)
+
+dftail <- df_pays[(nrow(df_pays)-(n - 1)):nrow(df_pays),] %>% mutate(team = gsub(" ","",team),
+                                                                     pass_completion_ratio = total_pass_succeed/total_pass,
+                                                                     total_pass = total_pass,
+                                                                     total_pass_succeed = total_pass_succeed,
+                                                                     .keep = "unused")
+
+#pays_gs <- pays_gs %>% mutate(team=gsub(" ","",x))
+
+dftail$group <- ifelse(dftail$team %in% pays_gs, "8-GS",
+                              ifelse(dftail$team %in% pays_r16, "7-R16",
+                                     ifelse(dftail$team %in% pays_quarterfinals, "6-Quarterfinals","5-Semifinals")))
+dftail$groupv2 <- ifelse(dftail$team %in% pays_gs, "8-GS",
+                              ifelse(dftail$team %in% pays_r16, "7-R16",
+                                     ifelse(dftail$team %in% pays_quarterfinals, "6-Quarterfinals",
+                                            ifelse(dftail$team == "Australia", "4th",
+                                                   ifelse(dftail$team == "Sweden", "3rd",
+                                                          ifelse(dftail$team == "England", "2nd",
+                                                                 ifelse(dftail$team=="Spain","1st","NA")))))))
+
+#view(dftail)
+
+p <- ggplot(dftail, aes(total_pass, pass_completion_ratio, label=team, color = groupv2)) + geom_text(aes(fontface=2)) + scale_color_viridis(discrete=TRUE)
+
+ggplotly(p)
+```
+
+##II-Pass - C) Implementing the Pass model we created
+
+```{r}
+Passes_All <- free_allevents(AllMatches) %>% filter(type.name=="Pass")
+Passes_Cleaned <- cleanlocations(Passes_All)
+# View(Passes_Cleaned)
+```
+
+```{r}
+# Let's try to predict whether a pass will be completed or not.
+# We will be looking at several different parameters for this model : the length, the angle, and whether a pass is under pressure or not. We also added the seconds, to verify the relevance of the results.
+
+dfmod <- data.frame(Passes_Cleaned['pass.length'],Passes_Cleaned['pass.angle'],Passes_Cleaned['pass.outcome.name'], Passes_Cleaned['under_pressure'], Passes_Cleaned['second'], Passes_Cleaned['location.x'], Passes_Cleaned['location.y'])
+
+#Let's transform the data using the mutate() and case_when() functions. Also, we are renaming some of the attributes to clearer names.
+
+dfmod <- dfmod  %>%  mutate(length = pass.length,
+                      angle = pass.angle,
+                      outcome = case_when(is.na(pass.outcome.name) ~ 1,
+                                         !is.na(pass.outcome.name) ~ 0),
+                      under_pressure = case_when(is.na(under_pressure) ~ 0,
+                                                !is.na(under_pressure) ~ 1))
+
+#Transformer la variable angle
+
+# Removing unnecessary columns
+
+dfmod <- subset(dfmod, select = -c(pass.length, pass.angle, pass.outcome.name))
+#view(dfmod)
+
+# Setting up the model
+
+m1 <- glm(outcome ~ length*angle*under_pressure*second + location.x + location.y, data=dfmod)
+
+# Removing unnecessary parameters from the model
+
+mBIC <- step(m1, backward=TRUE, k=log(nrow(dfmod)), trace=FALSE)
+summary(mBIC)
+
+# The BIC step procedure removed the "second" (this one is no surprise...) and "angle" parameters from the model.
+```
+
+
+```{r}
+R2 = 1 - 465.61/507.53
+print(R2)
+# R2 = 0.0825961, not very good by any means (with passes from France only, R2 = 0.07331737 with every pass from WC2023F)
+```
+
+```{r}
+#The location.y parameter was not considered relevant enough for the model. Adding the distance to center, as the location.y attribute should have a symmetrical impact along the halfline (the ones passing through the goalposts) from a strategical standpoint. 
+
+dfmod <- dfmod %>% mutate(distance_to_center = case_when(location.y >40 ~ location.y-40,
+                                                   location.y<=40 ~ -(location.y-40)))
+
+dfmod <- subset(dfmod, select = -c(second, location.y))
+
+#view(dfmod)
+```
+
+
+
+```{r}
+# There seems to be some non-linear dependencies within the model, as our barplot suggested.
+
+dfmod <- dfmod %>% mutate(length_sq = length**2)
+
+mtest <- glm(outcome ~ location.x*distance_to_center*length + angle * location.x + angle * distance_to_center + length*angle*under_pressure*length_sq - length:length_sq - length:under_pressure:length_sq, data=dfmod)
+summary(mtest)
+
+mfinal <- step(mtest, backward=TRUE, k=log(nrow(dfmod)),trace=FALSE)
+summary(mfinal)
+
+# Piste de Sébastien : Modèle de xP, xG, comparer résultat de regression logistique à un modèle de machine learning (SVM, Random forest, ...)
+```
+
+```{r}
+R2 <- 1 - 421.78/507.53
+print(R2)
+```
+
+```{r}
+# Prédire les résultats pour chaque passe dans le dataframe
+xP <- predict(mfinal, newdata = dfmod, type = "response")
+
+# Ajouter les probabilités de réussite d'une passe au dataframe original
+dfmod$xP <- xP
+
+# Afficher le dataframe avec les prédictions
+print(dfmod)
+```
+
+```{r}
+Pass_exp <- subset(Passes_All, select = c(team.name, player.name))
+#view(Pass_exp)
+
+Pass_exp <- Pass_exp  %>%  mutate(player = player.name,
+                                      team = gsub(" Women's","",team.name),
+                                      .keep="unused")
+# Calculer les probabilités prédites de réussite de chaque passe (xP)
+Pass_exp$xP <- xP
+#view(Pass_exp)
+
+df_pass_exp_succeed <- aggregate(x = Pass_exp$xP, by = list(Pass_exp$player), FUN = sum)
+#df_pass_exp_succeed <- df_pass_exp_succeed %>% mutate(player=Group.1, 
+#                               df_pass_exp_ratio=df_pass_exp_succeed/df_pass_exp_total)
+
+#view(df_pass_exp_succeed)
+colnames(df_pass_exp_succeed) <- c("player", "xP")
+#view(df)
+#view(df_pass_exp_succeed)
+df2p <- merge(df, df_pass_exp_succeed, by=c("player"))
+
+df2p <- df2p %>% mutate(xP_ratio = df_pass_exp_succeed$xP/total_pass,
+                        total_pass=total_pass,
+                        .keep = "unused")
+#view(df2p)
+
+print(length(df2p$player))
+
+df2p <- df2p[df2p$total_pass>=5,] # Removing players that attempted less than 4 pass
+#view(df2p)
+print(length(df2p$player)) # 563 players attempted at least 1 shots in the WC
+
+#We now have a df containing every player that shots at least once in the World cup, associated with their xP
+```
+
+###Comparaison xP to True Pass Ratio visualization - Players
+
+```{r}
+#pays = c("France", "England", "Spain", "Switzerland") #Select teams we wish to observe
+pays <- melt(df$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #Select all teams
+#view(df2p_player)
+#view(df2p)
+
+df2p_player <- df2p[df2p$team %in% pays,]
+mean_pass_completion_ratio = mean(df2p_player$pass_completion_ratio)
+mean_pass_nb = mean(df2p_player$total_pass)
+mean_pass_success=mean(df2p_player$total_pass_succeed)
+mean_pass_xP = mean(df2p_player$xP)
+mean_pass_xP_ratio = mean(df2p_player$xP/df2p_player$total_pass)
+
+df2p_player[nrow(df2p_player) + 1,] <- list("Mean Player", "Mean Player", mean_pass_nb, mean_pass_completion_ratio, mean_pass_success, mean_pass_xP, mean_pass_xP_ratio)
+
+#view(df2p_player)
+
+df2p_player$group <- ifelse(df2p_player$team %in% pays_gs, "8-GS",
+                              ifelse(df2p_player$team %in% pays_r16, "7-R16",
+                                     ifelse(df2p_player$team %in% pays_quarterfinals, "6-Quarterfinals","5-Semifinals")))
+df2p_player$groupv2 <- ifelse(df2p_player$team %in% pays_gs, "8-GS",
+                              ifelse(df2p_player$team %in% pays_r16, "7-R16",
+                                     ifelse(df2p_player$team %in% pays_quarterfinals, "6-Quarterfinals",
+                                            ifelse(df2p_player$team == "Australia", "4th",
+                                                   ifelse(df2p_player$team == "Sweden", "3rd",
+                                                          ifelse(df2p_player$team == "England", "2nd",
+                                                                 ifelse(df2p_player$team=="Spain","1st","NA")))))))
+
+
+#view(df2p_player)
+
+p <- ggplot(df2p_player, aes(xP_ratio, pass_completion_ratio, size = total_pass, label = player, colour=groupv2)) + 
+    geom_point(shape=21) + scale_color_viridis(discrete=TRUE) + geom_abline(intercept = 0, slope = 1, linetype = "dashed")
+#+scale_x_continuous(limits = c(0.4, 1))  # Remplace min_value et max_value par les valeurs minimale et maximale que tu souhaites afficher
+ggplotly(p)
+```   
+
+###Comparaison xP to True Pass Ratio visualization - Pays par Pays
+
+
+```{r}
+#pays2 = c("France", "England", "Spain", "Switzerland") #Countries we wish to observe
+pays2 <- melt(df2p$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #select all teams
+
+#view(pays2)
+
+df2p_pays <- df2p[df2p$team %in% pays2,]
+#view(df2p_pays)
+
+for (i in 0:length(pays2))
+  df2p_pays[nrow(df2p_pays) + 1, ] <- list(paste("",pays2[i]), paste("", pays2[i]),
+                                        sum(df2p_pays$total_pass[df2p_pays$team == pays2[i]]),
+                                        sum(df2p_pays$pass_completion_ratio[df2p_pays$team == pays2[i]]),
+                                        sum(df2p_pays$total_pass_succeed[df2p_pays$team == pays2[i]]),
+                                        sum(df2p_pays$xP[df2p_pays$team == pays2[i]]),
+                                        0)
+  
+df2p_pays <- subset(df2p_pays, select = -c(player))
+
+#view(df2p_pays)
+n <- length(pays2)
+
+df2ptail <- df2p_pays[(nrow(df2p_pays)-(n - 1)):nrow(df2p_pays),]  %>% mutate(team = gsub(" ","",team),
+                                                                    pass_completion_ratio = total_pass_succeed/total_pass,
+                                                                    total_pass = total_pass,
+                                                                    total_pass_succeed = total_pass_succeed,
+                                                                    xP = xP,
+                                                                    xP_ratio = xP/total_pass,
+                                                                    .keep = "unused")
+#view(df2ptail)
+
+df2ptail$group <- ifelse(df2ptail$team %in% pays_gs, "8-GS",
+                              ifelse(df2ptail$team %in% pays_r16, "7-R16",
+                                     ifelse(df2ptail$team %in% pays_quarterfinals, "6-Quarterfinals","5-Semifinals")))
+df2ptail$groupv2 <- ifelse(df2ptail$team %in% pays_gs, "8-GS",
+                              ifelse(df2ptail$team %in% pays_r16, "7-R16",
+                                     ifelse(df2ptail$team %in% pays_quarterfinals, "6-Quarterfinals",
+                                            ifelse(df2ptail$team == "Australia", "4th",
+                                                   ifelse(df2ptail$team == "Sweden", "3rd",
+                                                          ifelse(df2ptail$team == "England", "2nd",
+                                                                 ifelse(df2ptail$team=="Spain","1st","NA")))))))
+
+
+#view(df2ptail)
+
+
+p <- ggplot(df2ptail, aes(xP_ratio, pass_completion_ratio, size = total_pass, label=team, color = groupv2)) + geom_text(aes(fontface=3)) + geom_abline(intercept = 0, slope = 1, linetype = "dashed") + scale_color_viridis(discrete=TRUE)
+
+ggplotly(p)
+```
