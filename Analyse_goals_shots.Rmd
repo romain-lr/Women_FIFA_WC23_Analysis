@@ -674,4 +674,3 @@ stepAIC(glm.model_6, trace=FALSE)
 ```
 On voit que les positions en y ne servent à rien, seules celles en x sont significatives, ainsi que la partie du corps et la technique utilisée
 -> Meilleur modèle 
-
