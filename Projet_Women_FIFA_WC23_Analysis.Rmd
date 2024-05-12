@@ -36,6 +36,7 @@ library(ggplot2)
 library(writexl)
 library(readxl)
 library(gridExtra)
+library(matrixStats)
 
 
 
@@ -347,14 +348,15 @@ summary(glm.model_1_modif)
 ```
 
 
-$R^2$ for the model without interaction is :\
 
-```{r,echo=F}
+
+```{r,include=F}
 #R2 calculation:
-print(1-(glm.model_1$deviance/glm.model_1$null.deviance))
+R2_model1=1-(glm.model_1$deviance/glm.model_1$null.deviance)
+print(R2_model1)
 
 ```
-
+$R^2$ for the model without interaction is : \( `r R2_model1` \) \
 ```{r,include=F}
 #Testing regression with interaction
 glm.model_1_interac<-glm(shot.outcome.name~ .^2 ,data=df_model_1,family=binomial(link="logit"))
@@ -362,13 +364,15 @@ summary(glm.model_1_interac)
 #A lot of NA because some interactions are impossible (e.g. volleyball restart on a penalty kick).
 
 ```
-$R^2$ for the model with interaction is :\
 
-```{r,echo=F}
+
+```{r,include=F}
 #R2 calculation:
-print(1-(glm.model_1_interac$deviance/glm.model_1_interac$null.deviance))
+R2_model1_interac=1-(glm.model_1_interac$deviance/glm.model_1_interac$null.deviance)
+print(R2_model1_interac)
 ```
 
+$R^2$ for the model with interaction is : \( `r R2_model1_interac` \) 
 We make a model with the given expected goal as variable.\
 
 
@@ -380,11 +384,14 @@ glm.model_2<-glm(shot.outcome.name~ . ,data=df_model_2,family=binomial(link="log
 summary(glm.model_2)
 
 ```
-We would therefore like to find a model with an $R^2$ value close to this model, i.e. an $R^2$ close to :
-```{r,echo=F}
-print(1-(glm.model_2$deviance/glm.model_2$null.deviance))
+
+```{r,include=F}
+R2_model2=1-(glm.model_2$deviance/glm.model_2$null.deviance)
+print(R2_model2)
 
 ```
+
+We would therefore like to find a model with an $R^2$ value close to this model, i.e. an $R^2$ close to : \( `r R2_model2` \)
 
 We do the same logistical model but with the position added : location.x and location.y
 
@@ -401,14 +408,15 @@ glm.model_3<-glm(shot.outcome.name~ . ,data=df_model_3,family=binomial(link="log
 summary(glm.model_3)
 ```
 
-We test a regression without interaction, and obtain an $R^2$ of :
 
-```{r,echo=F}
-print(1-(glm.model_3$deviance/glm.model_3$null.deviance))
+```{r,include=F}
+R2_model_3=1-(glm.model_3$deviance/glm.model_3$null.deviance)
+print(R2_model_3)
 
 ```
+We test a regression without interaction, and obtain an $R^2$ of : \( `r R2_model_3` \)
 
-With interaction, and get an $R^2$ of :
+
 ```{r,include=F}
 #Model with interaction
 
@@ -416,10 +424,14 @@ glm.model_3_interac<-glm(shot.outcome.name~ .^2 ,data=df_model_3,family=binomial
 summary(glm.model_3_interac)
 ```
 
-```{r,echo=F}
-print(1-(glm.model_3_interac$deviance/glm.model_3_interac$null.deviance))
+```{r,include=F}
+R2_model_3_interac=1-(glm.model_3_interac$deviance/glm.model_3_interac$null.deviance)
+print(R2_model_3_interac)
 ```
-With interactions, we targeted the main variables to obtain a good model and an $R^2$ as close to 1 as possible.
+
+With interactions, we get an $R^2$ of : \( `r R2_model_3_interac` \)
+
+In this model, we targeted the main variables to obtain a good model and an $R^2$ as close to 1 as possible.
 
 
 We run several tests to see which variables are significant in the model. 
@@ -431,17 +443,19 @@ anova(model_simp,glm.model_3_interac,test="Chisq")
 
 ```
 
-We see that we can remove the technique because p_value>0.05 so we can accept the sub-model with a 95% level.
+We see that we can remove the technique because $p-value$>0.05 so we can accept the sub-model with a 95% level.
 
 ```{r,include=F}
 summary(model_simp)
 ```
 
-For this model we obtain an $R^2$ of :
 
-```{r,echo=F}
-print(1-(model_simp$deviance/model_simp$null.deviance))
+```{r,include=F}
+R2_model_simp=1-(model_simp$deviance/model_simp$null.deviance)
+print(R2_model_simp)
 ```
+
+For this model we obtain an $R^2$ of : \( `r R2_model_simp` \)
 
 The $R^2$ is no greater than for model 3 with interactions: this is normal because the $R^2$ favors models with many variables.
 We should look at other variables such as AIC, which is minimum for model 3 without interactions.
@@ -452,3 +466,123 @@ glm.model_3$fitted.values
 #we have numbers between 0 and 1 so this is good.
 
 ```
+
+We now want to compare model 3 with and without interaction : the closer the 2-norm is to 0, the better the model. 
+
+
+```{r,include=F}
+
+#Display norm L2 for the model_3 without interaction
+
+norm_L2_mod3 <- norm(glm.model_3$fitted.values - shots$shot.statsbomb_xg, type = "2")
+print(norm_L2_mod3)
+
+#Display norm L2 for the model_3 with interactions 
+
+norm_L2_mod3withinteractions <- norm(glm.model_3_interac$fitted.values - shots$shot.statsbomb_xg, type = "2")
+print(norm_L2_mod3withinteractions)
+
+
+```
+Norm L2 for the model_3 without interaction is equal to : \( `r norm_L2_mod3` \). \
+
+The value for the model_3 with interactions is : \( `r norm_L2_mod3withinteractions` \).\
+
+We find the same results as with the AIC criterion. This is consistent with the fact that $R^2$ favors models with many variables, so it's better to evaluate with AIC. The model 3 without interaction is best.
+
+We do the same to compare model 1 with and without interaction.
+
+```{r,include=F}
+
+#Display norm L2 for the model_1 without interaction
+norm_L2_mod1 <- norm(glm.model_1$fitted.values - shots$shot.statsbomb_xg, type = "2")
+print(norm_L2_mod1)
+
+#Display norm L2 for the model_1 with interactions
+norm_L2_mod1withinteractions <- norm(glm.model_1_interac$fitted.values - shots$shot.statsbomb_xg, type = "2")
+print(norm_L2_mod1withinteractions)
+
+```
+
+The L2 norms are respectively :  \( `r norm_L2_mod1` \) and \( `r norm_L2_mod1withinteractions` \)
+
+Both models are less accurate than the 3rd one.
+
+
+We now create a new model like the model_3, but adding a variable : under_pressure.
+First, we test the significance of this new variable.
+
+```{r,echo=F}
+df_model_4 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.y,under_pressure)
+df_model_4$shot.outcome.name <- ifelse(df_model_4$shot.outcome.name == "Goal", 1, 0)
+
+#Replace NA with “false” in the under_pressure column
+df_model_4$under_pressure <- ifelse(is.na(df_model_4$under_pressure), FALSE, df_model_4$under_pressure)
+
+#Testing the model with only the under_pressure variable
+glm.model_4 <- glm(shot.outcome.name ~ under_pressure, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4)
+```
+
+
+We see that \( p_{\text{value}} < 0.05 \), so we reject $H_0$ : playing under pressure is significant.
+
+Estimated coefficients are negative, so playing under pressure reduces the probability of scoring. 
+
+
+
+
+```{r,include=F}
+glm.model_4_bodypart <- glm(shot.outcome.name ~ shot.body_part.name, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4_bodypart)
+```
+
+
+Testing the model with only the shot.body_part.name variable gives us a $p_{value}$ of :
+\( `r summary(glm.model_4_bodypart)$coefficients[,"Pr(>|z|)"]` \)
+
+The probability of marking the head is lower than for other parts of the body.
+
+We now want to test the model with only the shot.technique.name variable.
+
+
+```{r,echo=F}
+
+glm.model_4_technique <- glm(shot.outcome.name ~ shot.technique.name, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4_technique)
+```
+
+The reference is backheel (tallonade): all the other techniques are better, we have a lot of values close to 1, we could do a constant sub-model to see if this variable is significant.
+
+```{r,include=F}
+model_constant= glm(shot.outcome.name ~ 1, data = df_model_4, family = binomial(link = "logit"))
+anova(model_constant,glm.model_4_technique,test="Chisq")
+```
+We find a $p_{value}$ of \( `r round(anova(model_constant, glm.model_4_technique, test="Chisq")$Pr[2], digits = 3)` \).
+We reject $H_0$, the technique variable is significant.
+
+We are now testing the model with only the shot.type.name variable. We also run a sub-model test.
+
+
+```{r,include=F}
+
+glm.model_4_type <- glm(shot.outcome.name ~ shot.type.name, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4_type)
+
+```
+
+```{r,include=F}
+anova(model_constant,glm.model_4_type,test="Chisq")
+```
+We find a $p_{value}$ of \( `r round(anova(model_constant, glm.model_4_type, test="Chisq")$Pr[2], digits = 3)` \).
+
+The variable type.name is significant, we reject $H_0$.
+
+We do the same with the variable location.x : 
+
+```{r,include=F}
+glm.model_4_loc_x <- glm(shot.outcome.name ~ location.x, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4_loc_x)
+```
+
+We see a $p_{value}$ of : \( `r summary(glm.model_4_bodypart)$coefficients[,"Pr(>|z|)"]` \) <0.05 so location.x is highly significant
