@@ -37,6 +37,7 @@ library(writexl)
 library(readxl)
 library(gridExtra)
 library(matrixStats)
+library(ggplot2)
 
 
 
@@ -585,4 +586,158 @@ glm.model_4_loc_x <- glm(shot.outcome.name ~ location.x, data = df_model_4, fami
 summary(glm.model_4_loc_x)
 ```
 
-We see a $p_{value}$ of : \( `r summary(glm.model_4_bodypart)$coefficients[,"Pr(>|z|)"]` \) <0.05 so location.x is highly significant
+We see a $p_{value}$ of : \( `r summary(glm.model_4_bodypart)$coefficients[,"Pr(>|z|)"]` \) <0.05 so location.x is highly significant.\
+
+#------------------------------------------------------
+
+The model is now tested with all the following variables: shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.y,under_pressure
+```{r,include=F}
+#We test now with all the variable in the model 3+under_pressure 
+glm.model_5 <- glm(shot.outcome.name ~ ., data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_5)
+AIC_model5=AIC(glm.model_5)
+R2_model5=1-(glm.model_5$deviance/glm.model_5$null.deviance)
+print(R2_model5)
+```
+
+We have an $R^2$ of \( `r R2_model5` \) which is good, but it's normal because it's a model with many variables.
+We also note a low AIC, which is equal to \texttt{`r AIC_model5`}.\
+
+We create the same model as above, but adding the position of the goalkeeper. First we test the model with only the location.x.GK variable.
+```{r,include=F}
+#Create a new df with all previous variables + goalkeeper position
+df_model_6 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.y,under_pressure,location.x.GK,location.y.GK)
+df_model_6$shot.outcome.name <- ifelse(df_model_6$shot.outcome.name == "Goal", 1, 0)
+
+#Replace NA with “false” in the under_pressure column
+df_model_6$under_pressure <- ifelse(is.na(df_model_6$under_pressure), FALSE, df_model_6$under_pressure)
+
+#Testing the model with only the location.x.GK variable
+glm.model_6_location.x.GK <- glm(shot.outcome.name ~ location.x.GK, data = df_model_6, family = binomial(link = "logit"))
+summary(glm.model_6_location.x.GK)
+
+AIC_model6_locx_GK=AIC(glm.model_6_location.x.GK)
+
+print(1-(glm.model_6_location.x.GK$deviance/glm.model_6_location.x.GK$null.deviance))
+```
+
+Significant effect of goal position in x.
+The AIC value is low, equals to \texttt{`r AIC_model6_locx_GK`}.\
+
+Then we do the same but with the location.y.GK variable.\
+
+```{r,include=F}
+#We test the model with only the variable location.y.GK
+glm.model_6_location.y.GK <- glm(shot.outcome.name ~ location.y.GK, data = df_model_6, family = binomial(link = "logit"))
+summary(glm.model_6_location.y.GK)
+
+AIC_model6_locy_GK=AIC(glm.model_6_location.y.GK)
+
+
+R2_model6loc_y_GK=1-(glm.model_6_location.y.GK$deviance/glm.model_6_location.y.GK$null.deviance)
+print(R2_model6loc_y_GK)
+```
+Variable for keeper position in y significant.
+AIC is slightly higher than for position in x, it's equal to \texttt{`r AIC_model6_locy_GK`}.\
+```{r,include=F}
+#Testing the model with all df6 variables without interaction
+glm.model_6 <- glm(shot.outcome.name ~ ., data = df_model_6, family = binomial(link = "logit"))
+summary(glm.model_6)
+
+AIC_model6=AIC(glm.model_6)
+
+R2_model6=1-(glm.model_6$deviance/glm.model_6$null.deviance)
+print(R2_model6)
+
+```
+Very low AIC=\texttt{`r AIC_model6`}. We can conclude that this model is really good.\
+
+```{r,include=F}
+#We create a new df without location.y
+df_model_7 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,under_pressure,location.x.GK,location.y.GK)
+df_model_7$shot.outcome.name <- ifelse(df_model_7$shot.outcome.name == "Goal", 1, 0)
+
+#Replace NA with “false” in the under_pressure column
+df_model_7$under_pressure <- ifelse(is.na(df_model_7$under_pressure), FALSE, df_model_7$under_pressure)
+
+#Test the model with all variables
+glm.model_7 <- glm(shot.outcome.name ~ ., data = df_model_7, family = binomial(link = "logit"))
+summary(glm.model_7)
+
+AIC_model7=AIC(glm.model_7)
+
+R2_model7=1-(glm.model_7$deviance/glm.model_7$null.deviance)
+print(R2_model7)
+
+```
+
+We can therefore remove the variable location.y
+The AIC is even lower, at \texttt{`r AIC_model7`}.\
+-> Best model for now
+
+```{r,echo=F}
+
+#We want to compare our xg obtained with model 7 with those of statsbomb :
+
+#We have a size problem between the two vectors: there are missing values
+#We obtain the indices of missing observations for all variables in model 7
+
+indices_obs_manquantes <- which(!complete.cases(df_model_7))
+indices_non_manquants <- setdiff(1:nrow(df_model_7), indices_obs_manquantes)
+
+#Only rows with no missing observations are kept
+statsbomb_xg <- shots$shot.statsbomb_xg[indices_non_manquants]
+
+df_plot <- data.frame(statsbomb_xg = statsbomb_xg, fitted = glm.model_7$fitted.values)
+
+#We compare both
+ggplot(df_plot, aes(x = seq_along(statsbomb_xg))) +
+  geom_point(aes(y = statsbomb_xg), color = "blue") +
+  geom_point(aes(y = fitted), color = "red") +
+  labs(title = "Comparison of statsbomb_xg and fitted values",
+       x = "Observations",
+       y = "Values") +
+  theme_minimal()
+
+ggplot(df_plot, aes(x = seq_along(statsbomb_xg))) +
+  geom_point(aes(y = log(statsbomb_xg)), color = "blue") +
+  geom_point(aes(y = log(fitted)), color = "red") +
+  labs(title = "Comparison of statsbomb_xg and fitted values",
+       x = "Observations",
+       y = "Values") +
+  theme_minimal()
+
+
+#We plot one against the other: xg against our fitted values
+ggplot(df_plot, aes(x = statsbomb_xg, y = fitted)) +
+  geom_point() + 
+  geom_abline(intercept = 0, slope = 1, color = "red") + 
+  labs(title = "Comparison of statsbomb_xg and fitted values",
+       x = "statsbomb_xg",
+       y = "Fitted values") + 
+  theme_minimal()  
+
+#Same as transforming to log
+ggplot(df_plot, aes(x = log(statsbomb_xg), y = log(fitted))) +
+  geom_point() + 
+  geom_abline(intercept = 0, slope = 1, color = "red") + 
+  labs(title = "Comparison of statsbomb_xg and fitted values",
+       x = "statsbomb_xg",
+       y = "Fitted values") + 
+  theme_minimal()  
+
+
+```
+
+We have a lot of values close to 0, so we do the log to make things clearer.
+
+In log: there's a point (an observation) where we've overestimated the chance of scoring, there are a few points at the bottom right where, on the contrary, we've underestimated the probability, but overall we've got a good prediction based on the Xg of bomb stats.
+
+```{r,echo=F}
+#Find the best model (that minimizes AIC)
+stepAIC(glm.model_6, trace=FALSE)
+```
+
+You can see that y-positions are useless, only x-positions are significant, as well as the body part and the technique used.
+-> Best model 
+
