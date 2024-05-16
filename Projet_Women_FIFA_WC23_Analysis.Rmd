@@ -38,16 +38,24 @@ library(readxl)
 library(gridExtra)
 library(matrixStats)
 library(ggplot2)
-library(reshape2)
-library(ggsci)
-library(viridis)
+
+
+
+
 ```
 
 \newpage
 
 # Introduction
 
-  Blalblablabla
+  In today's world, sports are at the center of global culture. To continue to excel, players and teams must find solutions, both physical and tactical. Therefore, statistics will play a crucial role in optimizing performance. Previous studies have shed light on various aspects of football analytics. Collet studied the impact of possession in 2013. More recently Liu analyzed the environmental impact in 2021. However, the realm of soccer remains relatively untapped in terms of data exploration. Understanding the dynamics of offensive and defensive play is pivotal for teams aiming to excel in competitions. 
+
+The research gap lies in the need for a comprehensive analysis of football performance using advanced statistical methods, with a focus on data from platforms like StatsBomb. The impact of certain specific aspects of football analytics, such as shot analysis or passing patterns, remains unclear, and a comprehensive understanding of player and team performance is still lacking.
+
+We aimed to address this gap by conducting a detailed analysis of football performance using StatsBomb data. We seeked to identify key performance indicators, assess their impact on match outcomes, and uncover underlying trends and patterns in player and team performance. This report outlines the methodology used for data collection and analysis, presents the findings from the study, and discusses their implications for the future of football analytics.
+
+This report is divided into three parts. In the first section, we conduct an exploratory data analysis to identify certain trends, notably by analyzing shots and goals for each team. Then we seek an optimal statistical model to determine which parameters have the greatest impact on player performance. The last section contains the results of our analysis, including insights into player and team performance derived from StatsBomb data, with graphs examining successful shots and passes. 
+
   
   
 ```{r, include=FALSE}
@@ -59,37 +67,6 @@ filter(competition_id==72 & season_name=="2023")
 Matches <- FreeMatches(WC2023)
 ```
 
-
-```{r, include=FALSE}
-AllMatches <- FreeMatches(WC2023)
-
-AllMatches <- AllMatches  %>%  mutate(away_team.away_team_name = gsub(" Women's","",away_team.away_team_name),
-                                      home_team.home_team_name = gsub(" Women's","",home_team.home_team_name),
-                                      .keep="unused")
-
-
-AllMatches <- AllMatches  %>%  mutate(away_team.away_team_name = gsub(" ","",away_team.away_team_name),
-                                      home_team.home_team_name = gsub(" ","",home_team.home_team_name),
-                                      .keep="unused")
-
-Events <- free_allevents(AllMatches)
-Shots_All <- Events %>% filter(type.name=="Shot")
-
-Shots_All <- Shots_All  %>%  mutate(team = gsub(" ","",team.name),
-                                      .keep="unused")
-```
-
-```{r, include=FALSE}
-Shots <- subset(Shots_All, select = c(shot.outcome.name,team, player.name))
-
-Shots <- Shots  %>%  mutate(player = player.name,
-                                      outcome = case_when(shot.outcome.name!="Goal" ~ 0,
-                                                         shot.outcome.name=="Goal" ~ 1),
-                                      team = gsub("Women's","",team),
-                                      .keep="unused")
-
-```
-
 ```{r, include=FALSE,eval=F}
 
 # Events for the games of the WC2023
@@ -97,6 +74,7 @@ WC2023_dataframe <- free_allevents(MatchesDF = Matches, Parallel = T)
 WC2023_dataframe = allclean(WC2023_dataframe)
 
 ```
+
 
 ```{r, include=F}
 
@@ -109,64 +87,12 @@ WC2023_dataframe <- read.csv("WC2023_dataframe.csv")
 
 
 
-```{r, include=FALSE}
+```{r,, include=FALSE}
 WC2023_dataframe <- WC2023_dataframe %>%
   mutate(team.name = str_remove(team.name, " Women's"))
 
 WC2023_dataframe <- WC2023_dataframe %>%
   mutate(possession_team.name = str_remove(possession_team.name, " Women's"))
-```
-
-
-```{r, include=FALSE}
-#For descriptive analysis and visualization we need to have some clearer way to colored datas, so we create groups depending on which stage of the competitions teams have lost
-Semifinals <- AllMatches %>% filter(competition_stage.name=="Semi-finals")
-pays_semifinals <- subset(Semifinals, select = c(home_team.home_team_name,away_team.away_team_name))
-pays_semifinals <- melt(pays_semifinals) %>% distinct() %>% as.list() %>% unlist() %>% sort() #select all teams
-pays_semifinals_list <- melt(pays_semifinals) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #select all teams
-#view(pays_semifinals)
-
-Quarterfinals <- AllMatches %>% filter(competition_stage.name=="Quarter-finals")
-pays_quarterfinals <- subset(Quarterfinals, select = c(home_team.home_team_name,away_team.away_team_name))
-pays_quarterfinals <- melt(pays_quarterfinals) %>% distinct() %>% as.list() %>% unlist() %>% sort() #select all teams
-pays_quarterfinals <- setdiff(pays_quarterfinals, pays_semifinals)
-pays_quarterfinals_list <- melt(pays_quarterfinals) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #select all teams
-#view(pays_quarterfinals)
-
-Round_of_16 <- AllMatches %>% filter(competition_stage.name=="Round of 16")
-pays_r16 <- subset(Round_of_16, select = c(home_team.home_team_name,away_team.away_team_name))
-pays_r16 <- melt(pays_r16) %>% distinct() %>% as.list() %>% unlist() %>% sort() #select all teams
-pays_r16 <- setdiff(pays_r16, union(pays_quarterfinals, pays_semifinals))
-pays_r16_list <- melt(pays_r16) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #select all teams
-#view(pays_r16)
-
-Group_Stage <- AllMatches %>% filter(competition_stage.name=="Group Stage")
-pays_gs <- subset(Group_Stage, select = c(home_team.home_team_name,away_team.away_team_name))
-pays_gs <- melt(pays_gs) %>% distinct() %>% as.list() %>% unlist() %>% sort() #select all teams
-pays_r8 <- union(pays_quarterfinals, pays_semifinals)
-pays_gs <- setdiff(pays_gs, union(pays_r16, pays_r8))
-pays_gs_list <- melt(pays_gs) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #select all teams
-#view(pays_gs)
-
-# Créer un data frame pour l'échelle de couleur
-color_scale_data_GS <- data.frame(team = pays_gs, group = "8-GS")
-color_scale_data_R16 <- data.frame(team = pays_r16, group = "7-R16")
-color_scale_data_Quarter <- data.frame(team = pays_quarterfinals, group = "6-Quarterfinals")
-color_scale_data_Semi <- data.frame(team = pays_semifinals, group = "5-Semifinals")
-color_scale_data_4 <- data.frame(team = "Australia", group = "4th")
-color_scale_data_3 <- data.frame(team = "Sweden", group = "3rd")
-color_scale_data_2 <- data.frame(team = "England", group = "2nd")
-color_scale_data_1 <- data.frame(team = "Spain", group = "1st")
-color_scale_data <- bind_rows(color_scale_data_GS, 
-                              color_scale_data_R16, 
-                              color_scale_data_Quarter, 
-                              color_scale_data_Semi)
-color_scale_2 <- bind_rows(color_scale_data_GS, 
-                              color_scale_data_R16, 
-                              color_scale_data_Quarter, 
-                              color_scale_data_4, color_scale_data_3, color_scale_data_2, color_scale_data_1)
-
-#view(color_scale_data)
 ```
 
 # Descriptive data analysis 
@@ -306,7 +232,7 @@ g2=ggplot(shots_goals_France_all_matches, aes(y = as.factor(match_id))) +
 grid.arrange(g1,g2,ncol=2)
 ```
 \clearpage
-
+ 
 ## Analysis of successful shots according to different variables  
 
 We first look at the type of shots.\
@@ -381,168 +307,6 @@ ggplot(shots_goals_part, aes(y = reorder(as.factor(shot.body_part.name), goals))
 ```
 \clearpage
 
-##Analysis of teams and players scoring ratio
-
-In this part we want to describe the number of goals scored by players and teams by using the goal ratio, so the number of goals scored on the number of totals shots during the events.\
-
-###Players scoring ratio
-
-Firstly, we looked at players, this may lead to find outliers so players which have performed a lot of shots but only few goals, and the opposite players which attempted only few shots but scored on a lot of them.
-This is a very basic way to start taking an interest in performance of players during this Word Cup.
-
-Figure \ref{fig:fig7} shows a visualization of the goal ratio on the total shots performed by players which have performed at least 1 shots during the World Cup.\
-
-
-```{r,include=F}
-df_shots_total <- aggregate(x = Shots$outcome, by = list(Shots$player), FUN = length)
-df_shots_succeed <- aggregate(x = Shots$outcome, by = list(Shots$player), FUN = sum)
-
-df <- merge(df_shots_succeed, df_shots_total, by=c("Group.1")) %>% mutate(player = Group.1,
-                                                                               completed_shots = x.x,
-                                                                               total_shots = x.y,
-                                                                               .keep="unused")
-
-df1 <- subset(Shots, selec = c(player, team))
-#view(df1)
-
-df <- merge(df1, df, by=c("player"))
-#view(df)
-df <- df %>% distinct()
-
-df <- df %>% mutate(shots_completion_ratio = completed_shots/total_shots,
-                    total_shots = total_shots,
-                    total_goals = completed_shots,
-                    .keep = "unused")
-
-print(length(df$player))
-#view(df)
-
-df <- df[df$total_shots>=1,] # Removing players that attempted less than 2 shots
-
-print(length(df$player)) # 398 players attempted at least 1 shots in the WC
-
-#We now have a df containing every player that shot at least once in the World cup, associated with how many shots they attempted, and their ratio of successful shots
-
-#pays = c("France", "England", "Spain", "Switzerland") #Select teams we wish to observe
-pays <- melt(df$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #Select all teams
-
-df_player <- df[df$team %in% pays,]
-
-df$groupv2 <- ifelse(df$team %in% pays_gs, "8-GS",
-                              ifelse(df$team %in% pays_r16, "7-R16",
-                                     ifelse(df$team %in% pays_quarterfinals, "6-Quarterfinals",
-                                            ifelse(df$team == "Australia", "4th",
-                                                   ifelse(df$team == "Sweden", "3rd",
-                                                          ifelse(df$team == "England", "2nd",
-                                                                 ifelse(df$team=="Spain","1st","NA")))))))
-
-mean_shots_completion_ratio = mean(df$shots_completion_ratio)
-mean_shots_nb = mean(df$total_shots)
-mean_goals_nb = mean(df$total_goals)
-
-
-df[nrow(df) + 1,] <- list("Mean Player", "Mean Player", mean_shots_nb, mean_shots_completion_ratio, mean_goals_nb, "Mean Player")
-#view(df)
-```
-
-
-```{r fig7 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig7}Goal ratio on the number of totals shots for players",fig.height=2,fig.align='center'}
-p <- ggplot(df, aes(total_shots, shots_completion_ratio, label = paste("player =", player, ", team =", team ), color = groupv2)) + geom_point() +  scale_color_viridis(discrete=TRUE)
-
-# Ajouter une nouvelle géométrie pour afficher "Mean Player" avec une croix rouge
-p <- p + geom_point(data = df[df$player == "Mean Player", ], aes(total_shots, shots_completion_ratio), shape = 4, color = "red4", size = 2)
-
-ggplotly(p)
-```
-
-So on this graph we can see that BLABLABLA.
-
-Now we miss an important information on this graphics. Indeed we can see that the most players attempted shots the less their ratio of successful shots is high, but we don't take into account the difficulty of the shots perfomed by the players. Indeed a penalty is intuitively easier to score than an open shot far for the goals and under the pressure of defenders. It's something we already saw in the Figure \ref{fig:fig4}, that goals on penalty occurred more often even though that there are less frequent in games.
-
-So, we ask ourselves base on which criteria we could try to implement the notion of shot's difficulty, and we find that the notion of Expected Goals is what we were looking for and that the Statsbomb dataset provide it with every shots attempt.
-
-The "Expected Goal", often named "xG" is the probability to score given a lot of datas on the shot, for example it can be the shhoter and the goal position, the fact that the striker is under pressure or not, with which foot he is attempting this shot and various differents variables. This probability is computed by the xG model of Statsbomb which is probably created on a large amount of data that they were able to collect.
-
-So this notion of xG is perfect to implement the notion of shots difficulty. We can compute the mean of the xG of every shots that one player attempted to see if the player had easy or hard shots to perform.
-
-This his what the Figure \ref{fig:fig8} is showing true goal ratio on the Statsbomb xG ratio for every player which attempted at least 1 shots during the World Cup./
-
-```{r,include=F}
-Shots_exp <- subset(Shots_All, select = c(shot.statsbomb_xg,team, player.name))
-
-Shots_exp <- Shots_exp  %>%  mutate(player = player.name,
-                                      xg = shot.statsbomb_xg,
-                                      team = gsub("Women's","",team),
-                                      .keep="unused")
-
-#view(Shots_exp)
-
-df_shots_exp_succeed <- aggregate(x = Shots_exp$xg, by = list(Shots_exp$player), FUN = sum)
-#df_shots_exp_succeed <- df_shots_exp_succeed %>% mutate(player=Group.1, 
-#                               df_shots_exp_ratio=df_shots_exp_succeed/df_shots_exp_total)
-
-#view(df_shots_exp_succeed)
-colnames(df_shots_exp_succeed) <- c("player", "xG")
-#view(df)
-#view(df_shots_exp_succeed)
-df2 <- merge(df, df_shots_exp_succeed, by=c("player"))
-df2 <- df2 %>% mutate(xG_ratio = df_shots_exp_succeed$xG/total_shots)
-#,                  .keep = "unused")
-
-#view(df2)
-
-print(length(df2$player))
-#view(df2)
-
-df2 <- df2[df2$total_shots>=1,] # Removing players that attempted less than 1 shots
-
-print(length(df2$player)) # 398 players attempted at least 1 shots in the WC
-
-#We now have a df containing every player that shots at least once in the World cup, associated with their xg
-
-```
-
-```{r}
-pays = c("France", "England", "Spain", "Switzerland") #Select teams we wish to observe
-pays <- melt(df$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #Select all teams
-
-df2_player <- df2[df2$team %in% pays,]
-
-
-
-df2_player$groupv2 <- ifelse(df2_player$team %in% pays_gs, "8-GS",
-                              ifelse(df2_player$team %in% pays_r16, "7-R16",
-                                     ifelse(df2_player$team %in% pays_quarterfinals, "6-Quarterfinals",
-                                            ifelse(df2_player$team == "Australia", "4th",
-                                                   ifelse(df2_player$team == "Sweden", "3rd",
-                                                          ifelse(df2_player$team == "England", "2nd",
-                                                                 ifelse(df2_player$team=="Spain","1st","NA")))))))
-
-
-mean_shots_completion_ratio = mean(df2_player$shots_completion_ratio)
-mean_shots_nb = mean(df2_player$total_shots)
-mean_goals_nb = mean(df2_player$total_goals)
-mean_shos_xG =  mean(df2_player$xG)
-mean_shots_xG_ratio = mean(df2_player$xG_ratio)
-
-df2_player[nrow(df2_player) + 1,] <- list("Mean Player", "Mean Player", mean_shots_nb, mean_shots_completion_ratio, mean_goals_nb, "Mean Player", mean_shos_xG, mean_shots_xG_ratio)
-
-
-
-view(df2_player)
-```
-
-
-```{r fig8 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fi87}Goal ratio on the Expected Goal ratio (Statsbomb model) for players",fig.height=2,fig.align='center'}
-p2 <- ggplot(df2_player, aes(xG_ratio, shots_completion_ratio, size = total_shots, label = player, colour=groupv2)) + 
-    geom_point(shape=21) + geom_abline(intercept = 0, slope = 1, linetype = "dashed") + scale_color_viridis(discrete=TRUE) #+ scale_y_log10()
-
-# Ajouter une nouvelle géométrie pour afficher "Mean Player" avec une croix rouge
-p2 <- p2 + geom_point(data = df2_player[df2_player$team == "Mean Player", ], aes(xG_ratio, shots_completion_ratio, size = total_shots), shape = 4, color = "red4", stroke = 1)
-
-ggplotly(p2)
-```
-
 # Models analysis
 
 We wanted to create our own xG model. To do that we developed different models, finding the most relevant variables to predict goals.\
@@ -555,6 +319,8 @@ shots = WC2023_dataframe %>%
 ```
 
 We run a logistic regression model: we want the output to be 0 or 1 depending on whether the shot turns into a goal.\
+
+## First model : body part, technique, type of shot
 
 The first model keeps the variables studied previously : body part, technique, type of shot. \
 
@@ -616,8 +382,11 @@ R2_model1_interac=1-(glm.model_1_interac$deviance/glm.model_1_interac$null.devia
 print(R2_model1_interac)
 ```
 
-$R^2$ for the model with interaction is : \( `r R2_model1_interac` \) 
-We make a model with the given expected goal as variable.\
+$R^2$ for the model with interaction is : \( `r R2_model1_interac` \) .\
+
+## Our target model : the expected goal variable
+
+We now create a model composed of a single variable: the expected goal given in StatsBomb.\
 
 
 ```{r,include=F}
@@ -635,9 +404,11 @@ print(R2_model2)
 
 ```
 
-We would therefore like to find a model with an $R^2$ value close to this model, i.e. an $R^2$ close to : \( `r R2_model2` \)
+Our goal in creating the different models in this section is to find the most accurate model possible, which can have an $R^2$ close to this model (with only the expected goal as a variable), i.e. an $R^2$ close to : \( `r R2_model2` \).\
 
-We do the same logistical model but with the position added : location.x and location.y
+## Model 3 : Adding location.x and location.y
+
+To do that we do the same logistical model as the first one but with the position added : location.x and location.y .\
 
 ```{r,include=F}
 
@@ -658,7 +429,7 @@ R2_model_3=1-(glm.model_3$deviance/glm.model_3$null.deviance)
 print(R2_model_3)
 
 ```
-We test a regression without interaction, and obtain an $R^2$ of : \( `r R2_model_3` \)
+We test a regression without interaction, and obtain an $R^2$ of : \( `r R2_model_3` \) .\
 
 
 ```{r,include=F}
@@ -673,12 +444,14 @@ R2_model_3_interac=1-(glm.model_3_interac$deviance/glm.model_3_interac$null.devi
 print(R2_model_3_interac)
 ```
 
-With interactions, we get an $R^2$ of : \( `r R2_model_3_interac` \)
+With interactions, we get an $R^2$ of : \( `r R2_model_3_interac` \).\
 
 In this model, we targeted the main variables to obtain a good model and an $R^2$ as close to 1 as possible.
 
+### Significance of variables ?
 
-We run several tests to see which variables are significant in the model. 
+
+We run several tests to see which variables are significant in the model. \
 
 ```{r,echo=F}
 
@@ -687,7 +460,7 @@ anova(model_simp,glm.model_3_interac,test="Chisq")
 
 ```
 
-We see that we can remove the technique because $p-value$>0.05 so we can accept the sub-model with a 95% level.
+We see that we can remove the technique because $p-value$>0.05 so we can accept the sub-model with a 95% level.\
 
 ```{r,include=F}
 summary(model_simp)
@@ -699,10 +472,10 @@ R2_model_simp=1-(model_simp$deviance/model_simp$null.deviance)
 print(R2_model_simp)
 ```
 
-For this model we obtain an $R^2$ of : \( `r R2_model_simp` \)
+For this sub-model without the technique variable we obtain an $R^2$ of : \( `r R2_model_simp` \)
 
-The $R^2$ is no greater than for model 3 with interactions: this is normal because the $R^2$ favors models with many variables.
-We should look at other variables such as AIC, which is minimum for model 3 without interactions.
+The $R^2$ is no greater than for model 3 with interactions: this is normal because the $R^2$ favors models with many variables.\
+We should look at other variables such as AIC, which is minimum for model 3 without interactions. \
 
 ```{r,include=F}
 #We'll compare the fitted values (probability of being a goal), with the expected goals.
@@ -710,6 +483,8 @@ glm.model_3$fitted.values
 #we have numbers between 0 and 1 so this is good.
 
 ```
+
+### Comparison of norms
 
 We now want to compare model 3 with and without interaction : the closer the 2-norm is to 0, the better the model. 
 
@@ -728,11 +503,12 @@ print(norm_L2_mod3withinteractions)
 
 
 ```
+
 Norm L2 for the model_3 without interaction is equal to : \( `r norm_L2_mod3` \). \
 
 The value for the model_3 with interactions is : \( `r norm_L2_mod3withinteractions` \).\
 
-We find the same results as with the AIC criterion. This is consistent with the fact that $R^2$ favors models with many variables, so it's better to evaluate with AIC. The model 3 without interaction is best.
+We find the same results as with the AIC criterion. This is consistent with the fact that $R^2$ favors models with many variables, so it's better to evaluate with AIC. We can conclude that the model 3 without interaction is best.
 
 We do the same to compare model 1 with and without interaction.
 
@@ -748,12 +524,17 @@ print(norm_L2_mod1withinteractions)
 
 ```
 
-The L2 norms are respectively :  \( `r norm_L2_mod1` \) and \( `r norm_L2_mod1withinteractions` \)
+The L2 norms are respectively :  \( `r norm_L2_mod1` \) and \( `r norm_L2_mod1withinteractions` \). \
 
 Both models are less accurate than the 3rd one.
 
 
-We now create a new model like the model_3, but adding a variable : under_pressure.
+## Model 4 : adding the under_pressure variable
+
+We now create a new model like the model_3, but adding a variable : under_pressure.\
+
+### Test for significance of single variables
+
 First, we test the significance of this new variable.
 
 ```{r,echo=F}
@@ -769,9 +550,9 @@ summary(glm.model_4)
 ```
 
 
-We see that \( p_{\text{value}} < 0.05 \), so we reject $H_0$ : playing under pressure is significant.
+We see that \( p_{\text{value}} < 0.05 \), so we reject $H_0$ : playing under pressure is significant. \
 
-Estimated coefficients are negative, so playing under pressure reduces the probability of scoring. 
+Estimated coefficients are negative, so playing under pressure reduces the probability of scoring. \
 
 
 
@@ -779,13 +560,22 @@ Estimated coefficients are negative, so playing under pressure reduces the proba
 ```{r,include=F}
 glm.model_4_bodypart <- glm(shot.outcome.name ~ shot.body_part.name, data = df_model_4, family = binomial(link = "logit"))
 summary(glm.model_4_bodypart)
+
+#The probability of marking the head is lower than for other parts of the body.
+
+```
+```{r,include=F}
+model_constant= glm(shot.outcome.name ~ 1, data = df_model_4, family = binomial(link = "logit"))
+anova(model_constant,glm.model_4_bodypart,test="Chisq")
 ```
 
 
-Testing the model with only the shot.body_part.name variable gives us a $p_{value}$ of :
-\( `r summary(glm.model_4_bodypart)$coefficients[,"Pr(>|z|)"]` \)
 
-The probability of marking the head is lower than for other parts of the body.
+Testing the model with only the shot.body_part.name variable gives us a $p_{value}$ of :
+\( `r round(anova(model_constant, glm.model_4_bodypart, test="Chisq")$Pr[2], digits = 3)` \). \
+We reject $H_0$, the technique variable is significant.
+
+
 
 We now want to test the model with only the shot.technique.name variable.
 
@@ -796,16 +586,19 @@ glm.model_4_technique <- glm(shot.outcome.name ~ shot.technique.name, data = df_
 summary(glm.model_4_technique)
 ```
 
-The reference is backheel (tallonade): all the other techniques are better, we have a lot of values close to 1, we could do a constant sub-model to see if this variable is significant.
+The reference is backheel : all the other techniques are better, we have a lot of values close to 1, we could do a constant sub-model to see if this variable is significant. \
 
 ```{r,include=F}
 model_constant= glm(shot.outcome.name ~ 1, data = df_model_4, family = binomial(link = "logit"))
 anova(model_constant,glm.model_4_technique,test="Chisq")
 ```
+
 We find a $p_{value}$ of \( `r round(anova(model_constant, glm.model_4_technique, test="Chisq")$Pr[2], digits = 3)` \).
 We reject $H_0$, the technique variable is significant.
 
-We are now testing the model with only the shot.type.name variable. We also run a sub-model test.
+
+
+We are now testing the model with only the shot.type.name variable. We also run a sub-model test. \
 
 
 ```{r,include=F}
@@ -820,7 +613,9 @@ anova(model_constant,glm.model_4_type,test="Chisq")
 ```
 We find a $p_{value}$ of \( `r round(anova(model_constant, glm.model_4_type, test="Chisq")$Pr[2], digits = 3)` \).
 
-The variable type.name is significant, we reject $H_0$.
+The variable shot.type.name is significant, we reject $H_0$.
+
+
 
 We do the same with the variable location.x : 
 
@@ -829,11 +624,32 @@ glm.model_4_loc_x <- glm(shot.outcome.name ~ location.x, data = df_model_4, fami
 summary(glm.model_4_loc_x)
 ```
 
-We see a $p_{value}$ of : \( `r summary(glm.model_4_bodypart)$coefficients[,"Pr(>|z|)"]` \) <0.05 so location.x is highly significant.\
+```{r,include=F}
+anova(model_constant,glm.model_4_loc_x,test="Chisq")
+```
+We see a $p_{value}$ of : \( `r round(anova(model_constant, glm.model_4_loc_x, test="Chisq")$Pr[2], digits = 3)` \). <0.05 so location.x is highly significant.\
 
-#------------------------------------------------------
 
-The model is now tested with all the following variables: shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.y,under_pressure
+We check if the variable location.y is significant as well. \
+
+```{r,include=F}
+glm.model_4_loc_y <- glm(shot.outcome.name ~ location.y, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4_loc_y)
+```
+
+```{r,include=F}
+anova(model_constant,glm.model_4_loc_y,test="Chisq")
+```
+
+The $p_{value}$ is : \( `r round(anova(model_constant, glm.model_4_loc_y, test="Chisq")$Pr[2], digits = 3)` \). > 0.05 so location.y is not significant.\
+
+
+### Testing the complete model
+
+
+The model is now tested with all the following variables: shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.y,under_pressure.\
+
+
 ```{r,include=F}
 #We test now with all the variable in the model 3+under_pressure 
 glm.model_5 <- glm(shot.outcome.name ~ ., data = df_model_4, family = binomial(link = "logit"))
@@ -843,11 +659,20 @@ R2_model5=1-(glm.model_5$deviance/glm.model_5$null.deviance)
 print(R2_model5)
 ```
 
-We have an $R^2$ of \( `r R2_model5` \) which is good, but it's normal because it's a model with many variables.
+We have an $R^2$ of \( `r R2_model5` \) which is good, but it's normal because it's a model with many variables. \
+
 We also note a low AIC, which is equal to \texttt{`r AIC_model5`}.\
 
-We create the same model as above, but adding the position of the goalkeeper. First we test the model with only the location.x.GK variable.
-```{r,include=F}
+## Model 5 : adding the position of the goalkeeper
+
+
+We create the same model as above, but adding the position of the goalkeeper. \
+
+### Does the position of the guard in x and y improve our results ? 
+
+First we test the model with only the location.x.GK variable.\
+
+```{r,echo=F}
 #Create a new df with all previous variables + goalkeeper position
 df_model_6 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.y,under_pressure,location.x.GK,location.y.GK)
 df_model_6$shot.outcome.name <- ifelse(df_model_6$shot.outcome.name == "Goal", 1, 0)
@@ -864,7 +689,7 @@ AIC_model6_locx_GK=AIC(glm.model_6_location.x.GK)
 print(1-(glm.model_6_location.x.GK$deviance/glm.model_6_location.x.GK$null.deviance))
 ```
 
-Significant effect of goal position in x.
+Significant effect of goal position in x because both $p_{values}$ are lower than 0.5. \
 The AIC value is low, equals to \texttt{`r AIC_model6_locx_GK`}.\
 
 Then we do the same but with the location.y.GK variable.\
@@ -880,8 +705,15 @@ AIC_model6_locy_GK=AIC(glm.model_6_location.y.GK)
 R2_model6loc_y_GK=1-(glm.model_6_location.y.GK$deviance/glm.model_6_location.y.GK$null.deviance)
 print(R2_model6loc_y_GK)
 ```
-Variable for keeper position in y significant.
+
+We find that the variable for keeper position in y is significant as well.
 AIC is slightly higher than for position in x, it's equal to \texttt{`r AIC_model6_locy_GK`}.\
+
+
+### Complete model 
+
+
+
 ```{r,include=F}
 #Testing the model with all df6 variables without interaction
 glm.model_6 <- glm(shot.outcome.name ~ ., data = df_model_6, family = binomial(link = "logit"))
@@ -893,7 +725,12 @@ R2_model6=1-(glm.model_6$deviance/glm.model_6$null.deviance)
 print(R2_model6)
 
 ```
-Very low AIC=\texttt{`r AIC_model6`}. We can conclude that this model is really good.\
+
+For the model with all the preceding variables and without interaction, we find a very low AIC=\texttt{`r AIC_model6`}. \
+We can conclude that this model is really good.\
+
+
+## Last model : keeping all significant variables and removing location.y
 
 ```{r,include=F}
 #We create a new df without location.y
@@ -914,9 +751,14 @@ print(R2_model7)
 
 ```
 
-We can therefore remove the variable location.y
-The AIC is even lower, at \texttt{`r AIC_model7`}.\
--> Best model for now
+Since we found that location.y is noyt significant, we can remove it from the model.\ 
+
+Without this variable, the AIC is even lower, at \texttt{`r AIC_model7`}.\
+
+We can conclude that we have found our best model for now and it's composed of the variables : 
+
+body_part, shot.technique, shot.type, location.x, under_pressure, location.x.GK, location.y.GK.\
+
 
 ```{r,echo=F}
 
@@ -974,17 +816,19 @@ ggplot(df_plot, aes(x = log(statsbomb_xg), y = log(fitted))) +
 
 We have a lot of values close to 0, so we do the log to make things clearer.
 
-In log: there's a point (an observation) where we've overestimated the chance of scoring, there are a few points at the bottom right where, on the contrary, we've underestimated the probability, but overall we've got a good prediction based on the Xg of bomb stats.
+In log: there's a point (an observation) where we've overestimated the chance of scoring.
+There are a few points at the bottom right where, on the contrary, we've underestimated the probability, but overall we've got a good prediction based on the Xg of bomb stats.
+
+
+## Finding our best model with the AIC criterion
 
 ```{r,echo=F}
 #Find the best model (that minimizes AIC)
 stepAIC(glm.model_6, trace=FALSE)
 ```
 
-You can see that y-positions are useless, only x-positions are significant, as well as the body part and the technique used.
--> Best model 
+We can see finally that y-positions are useless even for the goalkeeper, only x-positions are significant.
 
-# Models vizualisations
-
-Now that we have created our xG model and that we have found the better parameters to predict the sucess of a goal in the FIFA Women's World Cup, we can now try to vizualise these results\
+Our best model is composed of 4 variables : 
+The technique of shot, the body part used and the positions in x for the player and the goalkeeper.
 
