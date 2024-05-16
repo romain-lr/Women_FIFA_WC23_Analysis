@@ -1,0 +1,1103 @@
+---
+title: "Projet_Women_FIFA_WC23_Analysis"
+institute : "INSA Toulouse"
+date: "`r Sys.Date()`"
+always_allow_html: true
+output: 
+  pdf_document :
+    toc : TRUE
+    toc_depth : 3
+    number_section : TRUE
+    fig_caption: yes
+header-includes:
+   - \usepackage{dsfont}
+   - \usepackage{color}
+   - \newcommand{\1}{\mathds{1}}
+---
+
+```{r, include=FALSE}
+#Eval=False : on compile pas le chunk
+#Include=False : on affiche rien
+#Echo=False : on affiche que la sortie
+```
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(StatsBombR)
+library(extrafont)
+library(MASS)
+library(dplyr)
+library(plotly)
+library(stringr)
+library(ggplot2)
+library(writexl)
+library(readxl)
+library(gridExtra)
+library(matrixStats)
+library(ggplot2)
+library(viridis)
+```
+
+\newpage
+
+# Introduction
+
+  In today's world, sports are at the center of global culture. To continue to excel, players and teams must find solutions, both physical and tactical. Therefore, statistics will play a crucial role in optimizing performance. Previous studies have shed light on various aspects of football analytics. Collet studied the impact of possession in 2013. More recently Liu analyzed the environmental impact in 2021. However, the realm of soccer remains relatively untapped in terms of data exploration. Understanding the dynamics of offensive and defensive play is pivotal for teams aiming to excel in competitions. 
+
+The research gap lies in the need for a comprehensive analysis of football performance using advanced statistical methods, with a focus on data from platforms like StatsBomb. The impact of certain specific aspects of football analytics, such as shot analysis or passing patterns, remains unclear, and a comprehensive understanding of player and team performance is still lacking.
+
+We aimed to address this gap by conducting a detailed analysis of football performance using StatsBomb data. We seeked to identify key performance indicators, assess their impact on match outcomes, and uncover underlying trends and patterns in player and team performance. This report outlines the methodology used for data collection and analysis, presents the findings from the study, and discusses their implications for the future of football analytics.
+
+This report is divided into three parts. In the first section, we conduct an exploratory data analysis to identify certain trends, notably by analyzing shots and goals for each team. Then we seek an optimal statistical model to determine which parameters have the greatest impact on player performance. The last section contains the results of our analysis, including insights into player and team performance derived from StatsBomb data, with graphs examining successful shots and passes. 
+
+  
+  
+```{r, include=FALSE}
+# World Cup 2023 (id 72)
+WC2023 <- FreeCompetitions() %>%
+filter(competition_id==72 & season_name=="2023")
+
+# Games availables in WC2023
+Matches <- FreeMatches(WC2023)
+```
+
+```{r, include=FALSE,eval=T}
+
+# Events for the games of the WC2023
+WC2023_dataframe <- free_allevents(MatchesDF = Matches, Parallel = T)
+WC2023_dataframe = allclean(WC2023_dataframe)
+
+```
+
+
+```{r, include=F, eval=F}
+
+# Lire le fichier CSV dans R
+#write.csv(WC2023_dataframe, "WC2023_dataframe.csv", row.names = FALSE)
+
+WC2023_dataframe <- read.csv("WC2023_dataframe.csv")
+
+```
+
+
+
+```{r,, include=FALSE}
+WC2023_dataframe <- WC2023_dataframe %>%
+  mutate(team.name = str_remove(team.name, " Women's"))
+
+WC2023_dataframe <- WC2023_dataframe %>%
+  mutate(possession_team.name = str_remove(possession_team.name, " Women's"))
+```
+
+# Descriptive data analysis 
+
+The package StatsbombR provides the data from 71 national and international competitions, for a total of over 3000 matches. For the sake of this project, we narrow our scope down to the most recent competition available : The FIFA Women's World Cup 2023 and its 64 matches. We begin by interpreting the different variables of this large data set.\
+
+The full data set contains 183 variables for analysis, with the majority having a significant proportion of missing values, as they were used to track very specific patterns of play. As an example, the parameter "goalkeeper.shot_saved_to_post" is attributed "True" only if the goalkeeper saved a shot from going inside the goal, by deflecting it onto a post.\
+
+
+```{r, include=FALSE}
+create_Pitch <- function(opposing=TRUE, grass_colour = "#F9F9F9", line_colour = "#8F8F8F", background_colour = "#F9F9F9", goal_colour = "#000000", goaltype = "line", middlethird = FALSE, BasicFeatures = FALSE, JdeP = FALSE, arcs = TRUE, padding = 5, Heatmap = FALSE, df_heatmap){
+
+  library(ggplot2)
+  ## set theme for blank pitch
+  theme_blankPitch = function(size=12) {
+    theme(
+      #axis.line=element_blank(),
+      axis.text.x=element_blank(),
+      axis.text.y=element_blank(),
+      #axis.ticks.y=element_text(size=size),
+      #   axis.ticks=element_blank(),
+      axis.ticks.length=unit(0, "lines"),
+      #axis.ticks.margin=unit(0, "lines"),
+      axis.title.x=element_blank(),
+      axis.title.y=element_blank(),
+      legend.background=element_rect(fill=background_colour, colour=NA),
+      legend.key=element_rect(colour=background_colour,fill=background_colour),
+      legend.key.size=unit(1.2, "lines"),
+      legend.text=element_text(size=size),
+      legend.title=element_text(size=size, face="bold",hjust=0),
+      strip.background = element_rect(colour = background_colour, fill = background_colour, linewidth = .5),
+      panel.background=element_rect(fill=background_colour,colour=background_colour),
+      #       panel.border=element_blank(),
+      panel.grid.major=element_blank(),
+      panel.grid.minor=element_blank(),
+      panel.spacing=element_blank(),
+      plot.background=element_blank(),
+      plot.margin=unit(c(0, 0, 0, 0), "lines"),
+      plot.title=element_text(size=size*1.2),
+      strip.text.y=element_text(colour=background_colour,size=size,angle=270),
+      strip.text.x=element_text(size=size*1))}
+
+  ymin <- 0 # minimum width
+  ymax <- 80 # maximum width
+  if (opposing==TRUE){
+  xmin <- 80 # minimum length
+  }else{
+    xmin <-0
+    }
+  xmax <- 120 # maximum length
+
+  # Defining features along the length
+  boxEdgeDef <- 18
+  boxEdgeOff <- 102
+  halfwayline <- 60
+  sixYardDef <- 6
+  sixYardOff <- 114
+  penSpotDef <- 12
+  penSpotOff <- 108
+
+  # Defining features along the width
+  boxEdgeLeft <- 18
+  boxEdgeRight <- 62
+  sixYardLeft <- 30
+  sixYardRight <- 50
+  goalPostLeft <- 36
+  goalPostRight <- 44
+  CentreSpot <- 40
+
+  # other dimensions
+  centreCirle_d <- 20
+
+  ## define the circle function
+  circleFun <- function(center = c(0,0),diameter = 1, npoints = 100){
+    r = diameter / 2
+    tt <- seq(0,2*pi,length.out = npoints)
+    xx <- center[1] + r * cos(tt)
+    yy <- center[2] + r * sin(tt)
+    return(data.frame(x = xx, y = yy))
+  }
+
+  #### create center circle ####
+  center_circle <- circleFun(c(halfwayline,CentreSpot),centreCirle_d,npoints = 100)
+
+  ### FIRST STAGE
+  ## initiate the plot, set some boundries to the plot
+  if (Heatmap == TRUE){
+    p <- ggplot(df_heatmap, aes(x = x, y = y, fill = xg)) + 
+      xlim(c(xmin-padding,xmax+padding)) + ylim(c(ymin-padding,ymax+padding)) +   
+      theme_blankPitch() + 
+      geom_tile() + 
+      scale_fill_viridis(option = "A")
+  }else{
+    p <- ggplot() + xlim(c(xmin-padding,xmax+padding)) + ylim(c(ymin-padding,ymax+padding)) + theme_blankPitch()
+  }# add the theme
+
+  ### ADD MIDDLE THIRD SHADING
+  if(middlethird == TRUE){
+  p <- p + geom_rect(aes(xmin=(xmax/3*1), xmax=(xmax/3*2), ymin=ymin, ymax=ymax), colour = NA, fill = "black", alpha = 0.10)
+  }else{}
+
+  if(BasicFeatures == TRUE){
+  p <- p +
+  # add the base rectangle of the pitch
+  geom_rect(aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax), fill = NA, colour = line_colour) +
+  # add the 18 yard box defensive
+  geom_rect(aes(xmin=xmin, xmax=boxEdgeDef, ymin=boxEdgeLeft, ymax=boxEdgeRight), fill = grass_colour, colour = line_colour) +
+  # add the 18 yard box offensive
+  geom_rect(aes(xmin=boxEdgeOff, xmax=xmax, ymin=boxEdgeLeft, ymax=boxEdgeRight), fill = grass_colour, colour = line_colour) +
+  # add halway line
+  geom_segment(aes(x = halfwayline, y = ymin, xend = halfwayline, yend = ymax),colour = line_colour)
+  arcs = FALSE
+  }else{
+        ## initiate the plot, set some boundries to the plot
+  p <- p +
+  # add the base rectangle of the pitch
+  geom_rect(aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax), fill = NA, colour = line_colour) +
+  # add the 18 yard box defensive
+  geom_rect(aes(xmin=xmin, xmax=boxEdgeDef, ymin=boxEdgeLeft, ymax=boxEdgeRight), fill = grass_colour, colour = line_colour) +
+  # add the 18 yard box offensive
+  geom_rect(aes(xmin=boxEdgeOff, xmax=xmax, ymin=boxEdgeLeft, ymax=boxEdgeRight), fill = grass_colour, colour = line_colour) +
+  # add halway line
+  geom_segment(aes(x = halfwayline, y = ymin, xend = halfwayline, yend = ymax),colour = line_colour) +
+  # add the six yard box Defensive
+  geom_rect(aes(xmin=xmin, xmax=sixYardDef, ymin=sixYardLeft, ymax=sixYardRight), fill = grass_colour, colour = line_colour)  +
+  # add the six yard box offensive
+  geom_rect(aes(xmin=sixYardOff, xmax=xmax, ymin=sixYardLeft, ymax=sixYardRight), fill = grass_colour, colour = line_colour) +
+  # add centre circle
+  #geom_path(data=center_circle, aes(x=x,y=y), colour = line_colour) +
+    # add penalty spot left
+  geom_point(aes(x = penSpotDef , y = CentreSpot), colour = line_colour, size = 0.75) +
+  # add penalty spot right
+  geom_point(aes(x = penSpotOff , y = CentreSpot), colour = line_colour, size = 0.75) +
+  # add centre spot
+  geom_point(aes(x = halfwayline , y = CentreSpot), colour = line_colour, size = 0.75) }
+  
+  #### add goals depending on type
+
+  ## LINE TYPE
+  if(goaltype == "line"){
+  p <- p +
+  # add the goal Defensive
+  geom_segment(aes(x = xmin, y = goalPostLeft, xend = xmin, yend = goalPostRight),colour = goal_colour, size = 1) +
+  # add the goal offensive
+  geom_segment(aes(x = xmax, y = goalPostLeft, xend = xmax, yend = goalPostRight),colour = goal_colour, size = 1)
+
+  }else{}
+
+  ## Barca Numbers TYPE
+  if(goaltype == "barcanumbers"){
+  p <- p +
+  # add the goal Defensive
+  geom_segment(aes(x = xmin - 0.75, y = goalPostLeft, xend = xmin - 0.75, yend = goalPostRight),colour = line_colour, size = 0.75) +
+  # add the goal offensive
+  geom_segment(aes(x = xmax + 0.75, y = goalPostLeft, xend = xmax + 0.75, yend = goalPostRight),colour = line_colour, size = 0.75)
+
+  }else{}
+
+  ## BOX TYPE
+  if(goaltype == "box"){
+  p <- p +
+  # add the goal Defensive
+  geom_rect(aes(xmin = xmin - 2 , ymin = goalPostLeft, xmax = xmin, ymax = goalPostRight), fill = grass_colour, colour = line_colour) +
+  # add the goal offensive
+  geom_rect(aes(xmin = xmax, ymin = goalPostLeft, xmax = xmax + 2, ymax = goalPostRight), fill = grass_colour, colour = line_colour)
+  }else{}
+
+
+  ## add J de P
+  if(JdeP == TRUE){
+  p <- p +
+  # vertical tram lines
+  geom_segment(aes(x = boxEdgeDef, y = boxEdgeLeft, xend = boxEdgeOff, yend = boxEdgeLeft), colour = "#941C07", alpha = 0.3) +
+  geom_segment(aes(x = boxEdgeDef, y = boxEdgeRight, xend = boxEdgeOff, yend = boxEdgeRight), colour = "#941C07", alpha = 0.3) +
+  geom_segment(aes(x = boxEdgeDef, y = CentreSpot - 10, xend = boxEdgeOff, yend = CentreSpot - 10), colour = "#941C07", alpha = 0.3) +
+  geom_segment(aes(x = boxEdgeDef, y = CentreSpot + 10, xend = boxEdgeOff, yend = CentreSpot + 10), colour = "#941C07", alpha = 0.3) +
+  # horizontal tram lines
+  geom_segment(aes(x = boxEdgeDef, y = ymin, xend = boxEdgeDef, yend = ymax), colour = "#941C07", alpha = 0.3) +
+  geom_segment(aes(x = boxEdgeOff, y = ymin, xend = boxEdgeOff, yend = ymax), colour = "#941C07", alpha = 0.3) +
+  geom_segment(aes(x = (xmax/3*1), y = boxEdgeRight, xend = (xmax/3*1), yend = ymax), colour = "#941C07", alpha = 0.3) +
+  geom_segment(aes(x = (xmax/3*1), y = boxEdgeLeft, xend = (xmax/3*1), yend = ymin), colour = "#941C07", alpha = 0.3) +
+  geom_segment(aes(x = (xmax/3*2), y = boxEdgeRight, xend = (xmax/3*2), yend = ymax), colour = "#941C07", alpha = 0.3) +
+  geom_segment(aes(x = (xmax/3*2), y = boxEdgeLeft, xend = (xmax/3*2), yend = ymin), colour = "#941C07", alpha = 0.3)
+  # add the 18 yard box defensive
+  #geom_rect(aes(xmin=xmin, xmax=boxEdgeDef, ymin=boxEdgeLeft, ymax=boxEdgeRight), fill = NA, colour = line_colour) +
+  # add the 18 yard box offensive
+  #geom_rect(aes(xmin=boxEdgeOff, xmax=xmax, ymin=boxEdgeLeft, ymax=boxEdgeRight), fill = NA, colour = line_colour)
+  }else{}
+
+  ## add J de P
+  if(arcs == TRUE){
+  p <- p +
+  # vertical tram lines
+  annotate("path",
+           x = 12 + 10 * cos(seq(-0.3*pi, 0.3*pi, length.out = 30)),
+           y = 40 + 10 * sin(seq(-0.3*pi, 0.3*pi, length.out = 30)),
+           col = line_colour) +
+  annotate("path",
+           x = (120-12) - 10 * cos(seq(-0.3*pi, 0.3*pi, length.out = 30)),
+           y = 40 + 10 * sin(seq(-0.3*pi, 0.3*pi, length.out = 30)),
+           col = line_colour)
+  }else{}
+
+  return(p)
+
+}
+
+# This function will be useful to create a pitch background for plotting.
+```
+
+## Analysis of successful shots according to country
+
+First, we will look at how the data is stored in the data set. We will do this by plotting the shots of a specific match; we chose Spain-England, which was the final match of the competition.
+
+```{r, echo = F, eval = T, fig1 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig1}Visualization of the shots of Spain-England on the pitch",fig.height=4.5}
+Visualization_df <- WC2023_dataframe %>% subset(match_id == 3906390) %>% filter(type.name == "Shot")
+
+create_Pitch() + 
+  geom_point(data = Visualization_df, aes(x=location.x, y=location.y)) + 
+  geom_segment(data = Visualization_df, aes(x = location.x, y = location.y, xend = shot.end_location.x, yend = shot.end_location.y, color = player.name), show.legend = F)
+
+#view(Visualization_df)
+```
+
+We can see that regardless of which team scores, the locations of the players are always tracked the same way : for a given team, the home goal is located at x = 0, which corresponds to the left of this graph, and the opposing goal is located at x = 120. This will allow us to directly use the provided variables, without further formatting the data.
+
+Then, we took a look at the number of goals and shots in all matches for each team.\
+Figure \ref{fig:fig1} shows a visualization of these results.\
+
+```{r, include=FALSE}
+#Number of goals and shots in all games for each team
+shots_goals = WC2023_dataframe %>%
+group_by(team.name) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+```
+
+From the above figure, we can already see a big disparity in team success. Some teams, like Vietnam and Haiti, didn't even manage to score a goal over the course of the competition, while Sweden and France were more successful in this aspect. However, simply displaying how much shots and goals a team made provides an incomplete understanding of team effectiveness, and is generally a flawed metric for comparison, as teams that made it further into the competition naturally scored more goals, and had more shots. 
+
+```{r fig1 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig1}Diagram of the number of goals and shots in all matches for each team",fig.height=4.5}
+#Let's make a graph
+ggplot(shots_goals, aes(y = reorder(as.factor(team.name), goals))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Number of goals and shots in all games for each team",
+       y = "Team",
+       x = "Number") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green"))
+```
+
+Therefore, we calculated the percentage of shots leading to a goal for every team, and compared them in Figure \ref{fig:fig2}.
+
+From this graph, we are able to identify that Sweden was the most efficient team in scoring by over 2.5%. This is of course very biased, as Sweden finished third in the tournament, only losing one match throughout the entirety of the competition. Keeping that in mind, it is surprising that Spain scores this low on the graph, considering they won the World Cup. It could be that Spain, despite their evident success, was not a very efficient team, or that they had a different playing style than other teams.
+
+```{r fig2 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig2}Diagram of the percentage of shots leading to a goal",fig.height=4,fig.align='center'}
+
+ggplot(shots_goals, aes(y = reorder(as.factor(team.name), goals/shots*100))) +
+  geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Percentage of shots leading to a goal",
+       y = "Team",
+       x = "Percentage")
+```
+
+\vspace{3pt}
+
+Next, we wanted to realize the above analyses for singular matches. We chose the four matches played by team France, and created the same graphs for each of their matches.
+Figure \ref{fig:fig3} shows the results.\
+
+As we can see, there were a huge number of goals in two games : Panama France and Australia France. The first match ended on a exceptional 3-6 score for France, but the former ended on a nil-nil. However, teams went to penalties, and they scored a total of 13, making this observation flawed.
+
+```{r,include=F}
+shots_goals_all_matches = WC2023_dataframe %>%
+  group_by(match_id) %>%
+  reframe(team_name = unique(team.name),
+            shots = sum(type.name=="Shot", na.rm = TRUE),
+            goals = sum(shot.outcome.name=="Goal", na.rm = TRUE))
+
+#Number of goals and shots in each match for both teams
+#shots_goals_all_matches = WC2023_dataframe %>%
+#group_by(match_id) %>% 
+#summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+#goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+
+```
+
+```{r,include=F}
+#We display ids of all France matches
+Id_France = WC2023_dataframe%>% filter(team.name=="France")
+match_ids_france=unique(Id_France$match_id)
+print(match_ids_france)
+```
+
+
+```{r,include=F}
+#For each French match, the total number of shots and goals for the 2 teams (France+adversary) is displayed.
+
+france_goals <- shots_goals_all_matches %>%
+  filter(match_id %in% match_ids_france) %>%
+  subset(team_name!="France")
+
+print(france_goals)
+```
+
+
+```{r,include=F}
+ggplot(france_goals, aes(y = team_name)) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Number of shots and goals for each French match",
+       y = "France's opposing team",
+       x = "Number") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green"))
+  
+```
+
+
+```{r,include=F}
+ggplot(france_goals, aes(y = reorder(as.factor(match_id), goals/shots*100))) +
+  geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Percentage of shots on goal in France matches",
+       y = "Match",
+       x = "Percentage")
+
+#Il faut ordonner par date pour avoir l'évolution de la stratégie au cours de la compétition
+
+
+```
+
+```{r,include=F}
+
+#We want to know which goals come from France
+shots_goals_France_all_matches = WC2023_dataframe %>%
+filter(team.name=="France") %>%
+group_by(match_id) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+
+print (shots_goals_France_all_matches)
+
+```
+
+
+
+```{r fig3 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig3}Diagram of the number of shots and goals for each French and percentage",fig.height=2,fig.align='center'}
+
+g1=ggplot(shots_goals_France_all_matches, aes(y = as.factor(match_id))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Numbers for France's matches",
+       y = "Match_id",
+       x = "Number") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green")) 
+
+
+g2=ggplot(shots_goals_France_all_matches, aes(y = as.factor(match_id))) +
+  geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Percentage in France's matches",
+       y = "Match",
+       x = "Percentage") 
+
+#Order from bottom to top: 1st match to last
+grid.arrange(g1,g2,ncol=2)
+```
+\clearpage
+ 
+## Analysis of successful shots according to different variables  
+
+We first look at the different types of shots in Figure \ref{fig:fig3}. Four different types of shots were differentiated in the data set : "Open Play", "Penalty", "Free Kick" as well as "Corner." A shot was deemed as being "Open Play" if it was taken during regular actions of the game. The "Corner" label only applies to a single shot made by Ireland's Katie McCabe, and went in. This is something to keep in mind, as it is sure to skew our future models. Other labels are self-explanatory.\
+
+```{r,include=F}
+#Number of goals and shots in all matches by type of shot
+shots_goals_formation = WC2023_dataframe %>%
+group_by(shot.type.name) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+
+shots_goals_formation=shots_goals_formation[-c(5),]
+```
+
+
+```{r fig4 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig4}Diagram of the number of shots and goals for each type of shot",fig.height=2,fig.align='center'}
+ggplot(shots_goals_formation, aes(y = reorder(as.factor(shot.type.name), goals))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Number of shots and goals for each type of shot",
+       y = "type",
+       x = "Number") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green"))
+```
+
+
+Next, we look at the different techniques used by players : how much are being kept a track in the data set, how much were each of them used, and which one produced the most goals.\
+
+Figure \ref{fig:fig4} shows that data set contains seven types of shots, although only three are consistently being used, that is : "Normal", "Half Volley" and "Volley". Naturally, the "Normal" shot was the most popular, and hence yielded the mos t goals. A "Lob" was very infrequently done, but could prove effective in the right situation : it seems a good portion of these shots went in.
+
+```{r,include=F}
+#Number of shots and goals for each technique of shot
+shots_goals_technique = WC2023_dataframe %>%
+group_by(shot.technique.name) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+
+#On enlève la ligne NA
+
+shots_goals_technique=shots_goals_technique[-c(8),]
+```
+
+
+```{r fig5 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig5}Diagram of the number of shots and goals for each technique of shot",fig.height=2,fig.pos="h",fig.align='center'}
+
+ggplot(shots_goals_technique, aes(y = reorder(as.factor(shot.technique.name), goals))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Number of shots and goals for each technique of shot",
+       y = "Technique of shot",
+       x = "Number") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green"))
+```
+
+Similarly, we visualize in Figure \ref{fig:fig5} the different body parts used in shooting.
+
+Unsurprisingly, the right foot was most commonly used, and it seems every body part was equally as effective in scoring, apart from the "Other" body zone.
+
+```{r,include=F}
+#Number of goals and shots over all matches according to body zone used
+shots_goals_part = WC2023_dataframe %>%
+group_by(shot.body_part.name) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+shots_goals_part=shots_goals_part[-c(5),]
+
+```
+
+```{r fig6 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig6}Diagram of the number of goals and shots according to body zone used",fig.height=2,fig.pos="h"}
+
+ggplot(shots_goals_part, aes(y = reorder(as.factor(shot.body_part.name), goals))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Number of goals and shots according to body zone used",
+       y = "Body zone",
+       x = "Number") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green")) 
+```
+\clearpage
+
+# Models analysis
+
+We wanted to create our own xG model. To do that we developed different models, finding the most relevant variables to predict goals.\
+
+```{r,include=F}
+#We create a df with just the shots
+
+shots = WC2023_dataframe %>%
+ filter(type.name=="Shot")
+```
+
+We run a logistic regression model: we want the output to be 0 or 1 depending on whether the shot turns into a goal.\
+
+## First model : body part, technique, type of shot
+
+The first model keeps the variables studied previously : body part, technique, type of shot. \
+
+
+```{r,include=F}
+
+df_model_1 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name)
+df_model_1$shot.outcome.name <- ifelse(df_model_1$shot.outcome.name == "Goal", 1, 0)
+
+
+```
+
+```{r, include = F}
+#Testing regression without interaction
+
+glm.model_1<-glm(shot.outcome.name~ . ,data=df_model_1,family=binomial(link="logit"))
+summary(glm.model_1)
+```
+
+```{r,include=F}
+#We see a skewed shot.type.namePenalty because the corner modality is taken as reference and, given that there were no shots or goals during the competition, the model considers 100% success for the corner modality.
+
+
+#We change the reference modality from “corner” to “penalty”.
+df_model_1_modif=df_model_1
+df_model_1_modif$shot.type.name <- relevel(as_factor(df_model_1_modif$shot.type.name), ref = "Penalty")
+
+glm.model_1_modif <- glm(shot.outcome.name ~ . , data = df_model_1_modif, family = binomial(link = "logit"))
+summary(glm.model_1_modif)
+
+```
+
+```{r,include=F}
+#We can see that Open Play and Free Kick are less likely to result in a goal than a penalty kick. The corner remains distorted
+```
+
+
+
+
+```{r,include=F}
+#R2 calculation:
+R2_model1=1-(glm.model_1$deviance/glm.model_1$null.deviance)
+print(R2_model1)
+
+```
+$R^2$ for the model without interaction is : \( `r R2_model1` \) \
+```{r,include=F}
+#Testing regression with interaction
+glm.model_1_interac<-glm(shot.outcome.name~ .^2 ,data=df_model_1,family=binomial(link="logit"))
+summary(glm.model_1_interac)
+#A lot of NA because some interactions are impossible (e.g. volleyball restart on a penalty kick).
+
+```
+
+
+```{r,include=F}
+#R2 calculation:
+R2_model1_interac=1-(glm.model_1_interac$deviance/glm.model_1_interac$null.deviance)
+print(R2_model1_interac)
+```
+
+$R^2$ for the model with interaction is : \( `r R2_model1_interac` \) .\
+
+## Our target model : the expected goal variable
+
+We now create a model composed of a single variable: the expected goal given in StatsBomb.\
+
+
+```{r,include=F}
+df_model_2 <- dplyr::select(shots,shot.statsbomb_xg,shot.outcome.name)
+df_model_2$shot.outcome.name <- ifelse(df_model_2$shot.outcome.name == "Goal", 1, 0)
+
+glm.model_2<-glm(shot.outcome.name~ . ,data=df_model_2,family=binomial(link="logit"))
+summary(glm.model_2)
+
+```
+
+```{r,include=F}
+R2_model2=1-(glm.model_2$deviance/glm.model_2$null.deviance)
+print(R2_model2)
+```
+
+Our goal in creating the different models in this section is to find the most accurate model possible, which can have an $R^2$ close to this model (with only the expected goal as a variable), i.e. an $R^2$ close to : \( `r R2_model2` \).\
+
+## Model 3 : Adding location.x and location.y
+
+Any player on the field is assimilated as a moving point on a rectangle of size 80x120m. Its horizontal movement - that is, going from one goal post to another - is tracked by the variable location.x, while the vertical movement is associated to location.y. We will now add location.x and location.y to our previously adjusted model. \
+
+```{r,include=F}
+df_model_3 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.y)
+
+df_model_3$shot.outcome.name <- ifelse(df_model_3$shot.outcome.name == "Goal", 1, 0)
+```
+
+```{r,include=F}
+#Model without interaction
+glm.model_3<-glm(shot.outcome.name ~ . ,data=df_model_3,family=binomial(link="logit"))
+summary(glm.model_3)
+```
+
+
+```{r,include=F}
+R2_model_3=1-(glm.model_3$deviance/glm.model_3$null.deviance)
+print(R2_model_3)
+
+```
+We test a regression without interaction, and obtain an $R^2$ of : \( `r R2_model_3` \) .\
+
+
+```{r,include=F}
+#Model with interaction
+
+glm.model_3_interac<-glm(shot.outcome.name~ .^2 ,data=df_model_3,family=binomial(link="logit"))
+summary(glm.model_3_interac)
+```
+
+```{r,include=F}
+R2_model_3_interac=1-(glm.model_3_interac$deviance/glm.model_3_interac$null.deviance)
+print(R2_model_3_interac)
+```
+
+With interactions, we get an $R^2$ of : \( `r R2_model_3_interac` \).\
+
+In this model, we targeted the main variables to obtain a good model and an $R^2$ as close to 1 as possible.
+
+### Significance of variables ?
+
+
+We run several tests to see which variables are significant in the model. \
+
+```{r,echo=F}
+model_simp<-glm(shot.outcome.name~ (location.x +location.y + shot.body_part.name+shot.type.name)^2 ,data=df_model_3,family=binomial(link="logit"))
+anova(model_simp,glm.model_3_interac,test="Chisq")
+```
+
+We see that we can remove the technique because $p-value$>0.05 so we can accept the sub-model with a 95% level.\
+
+```{r,include=F}
+summary(model_simp)
+```
+
+
+```{r,include=F}
+R2_model_simp=1-(model_simp$deviance/model_simp$null.deviance)
+print(R2_model_simp)
+```
+
+For this sub-model without the technique variable we obtain an $R^2$ of : \( `r R2_model_simp` \)
+
+The $R^2$ is no greater than for model 3 with interactions: this is normal because the $R^2$ favors models with many variables.\
+We should look at other variables such as AIC score, which is minimal for model 3 without interactions. \
+
+```{r,include=F}
+#We'll compare the fitted values (probability of being a goal), with the expected goals.
+glm.model_3$fitted.values
+#we have numbers between 0 and 1 so this is good.
+
+```
+
+### Comparison of norms
+
+We now want to compare model 3 with and without interaction : the closer the 2-norm is to 0, the better the model. 
+
+
+```{r,include=F}
+
+#Display norm L2 for the model_3 without interaction
+
+norm_L2_mod3 <- norm(glm.model_3$fitted.values - shots$shot.statsbomb_xg, type = "2")
+print(norm_L2_mod3)
+
+#Display norm L2 for the model_3 with interactions 
+
+norm_L2_mod3withinteractions <- norm(glm.model_3_interac$fitted.values - shots$shot.statsbomb_xg, type = "2")
+print(norm_L2_mod3withinteractions)
+
+
+```
+
+Norm L2 for the model_3 without interaction is equal to : \( `r norm_L2_mod3` \). \
+
+The value for the model_3 with interactions is : \( `r norm_L2_mod3withinteractions` \).\
+
+We find the same results as with the AIC criterion. This is consistent with the fact that $R^2$ favors models with many variables, so it's better to evaluate with AIC. We can conclude that the model 3 without interaction is best.
+
+We do the same to compare model 1 with and without interaction.
+
+```{r,include=F}
+
+#Display norm L2 for the model_1 without interaction
+norm_L2_mod1 <- norm(glm.model_1$fitted.values - shots$shot.statsbomb_xg, type = "2")
+print(norm_L2_mod1)
+
+#Display norm L2 for the model_1 with interactions
+norm_L2_mod1withinteractions <- norm(glm.model_1_interac$fitted.values - shots$shot.statsbomb_xg, type = "2")
+print(norm_L2_mod1withinteractions)
+
+```
+
+The L2 norms are respectively :  \( `r norm_L2_mod1` \) and \( `r norm_L2_mod1withinteractions` \). \
+
+Both models are less accurate than the 3rd one.
+
+
+## Model 4 : adding the under_pressure variable
+
+We now create a new model like the model_3, but adding a variable : under_pressure.\
+
+### Test for significance of single variables
+
+First, we test the significance of this new variable.
+
+```{r,echo=F}
+df_model_4 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.y,under_pressure)
+df_model_4$shot.outcome.name <- ifelse(df_model_4$shot.outcome.name == "Goal", 1, 0)
+
+#Replace NA with “false” in the under_pressure column
+df_model_4$under_pressure <- ifelse(is.na(df_model_4$under_pressure), FALSE, df_model_4$under_pressure)
+
+#Testing the model with only the under_pressure variable
+glm.model_4 <- glm(shot.outcome.name ~ under_pressure, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4)
+```
+
+
+We see that \( p_{\text{value}} < 0.05 \), so we reject $H_0$ : playing under pressure is significant. \
+
+Estimated coefficients are negative, so playing under pressure reduces the probability of scoring. \
+
+
+
+
+```{r,include=F}
+glm.model_4_bodypart <- glm(shot.outcome.name ~ shot.body_part.name, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4_bodypart)
+
+#The probability of marking the head is lower than for other parts of the body.
+
+```
+```{r,include=F}
+model_constant= glm(shot.outcome.name ~ 1, data = df_model_4, family = binomial(link = "logit"))
+anova(model_constant,glm.model_4_bodypart,test="Chisq")
+```
+
+
+
+Testing the model with only the shot.body_part.name variable gives us a $p_{value}$ of :
+\( `r round(anova(model_constant, glm.model_4_bodypart, test="Chisq")$Pr[2], digits = 3)` \). \
+We reject $H_0$, the technique variable is significant.
+
+
+
+We now want to test the model with only the shot.technique.name variable.
+
+
+```{r,echo=F}
+
+glm.model_4_technique <- glm(shot.outcome.name ~ shot.technique.name, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4_technique)
+```
+
+The reference is backheel : all the other techniques are better, we have a lot of values close to 1, we could do a constant sub-model to see if this variable is significant. \
+
+```{r,include=F}
+model_constant= glm(shot.outcome.name ~ 1, data = df_model_4, family = binomial(link = "logit"))
+anova(model_constant,glm.model_4_technique,test="Chisq")
+```
+
+We find a $p_{value}$ of \( `r round(anova(model_constant, glm.model_4_technique, test="Chisq")$Pr[2], digits = 3)` \).
+We reject $H_0$, the technique variable is significant.
+
+
+
+We are now testing the model with only the shot.type.name variable. We also run a sub-model test. \
+
+
+```{r,include=F}
+
+glm.model_4_type <- glm(shot.outcome.name ~ shot.type.name, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4_type)
+
+```
+
+```{r,include=F}
+anova(model_constant,glm.model_4_type,test="Chisq")
+```
+We find a $p_{value}$ of \( `r round(anova(model_constant, glm.model_4_type, test="Chisq")$Pr[2], digits = 3)` \).
+
+The variable shot.type.name is significant, we reject $H_0$.
+
+
+
+We do the same with the variable location.x : 
+
+```{r,include=F}
+glm.model_4_loc_x <- glm(shot.outcome.name ~ location.x, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4_loc_x)
+```
+
+```{r,include=F}
+anova(model_constant,glm.model_4_loc_x,test="Chisq")
+```
+We see a $p_{value}$ of : \( `r round(anova(model_constant, glm.model_4_loc_x, test="Chisq")$Pr[2], digits = 3)` \). <0.05 so location.x is highly significant.\
+
+
+We check if the variable location.y is significant as well. \
+
+```{r,include=F}
+glm.model_4_loc_y <- glm(shot.outcome.name ~ location.y, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4_loc_y)
+```
+
+```{r,include=F}
+anova(model_constant,glm.model_4_loc_y,test="Chisq")
+```
+
+The $p_{value}$ is : \( `r round(anova(model_constant, glm.model_4_loc_y, test="Chisq")$Pr[2], digits = 3)` \). > 0.05 so location.y is not significant.\
+
+
+### Testing the complete model
+
+
+The model is now tested with all the following variables: shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.y,under_pressure.\
+
+
+```{r,include=F}
+#We test now with all the variable in the model 3+under_pressure 
+glm.model_5 <- glm(shot.outcome.name ~ ., data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_5)
+AIC_model5=AIC(glm.model_5)
+R2_model5=1-(glm.model_5$deviance/glm.model_5$null.deviance)
+print(R2_model5)
+```
+
+We have an $R^2$ of \( `r R2_model5` \) which is good, but it's normal because it's a model with many variables. \
+
+We also note a low AIC, which is equal to \texttt{`r AIC_model5`}.\
+
+## Model 5 : adding the position of the goalkeeper
+
+
+We create the same model as above, but adding the position of the goalkeeper. \
+
+### Does the position of the goalkeeper in x and y improve our results ? 
+
+First we test the model with only the location.x.GK variable.\
+
+```{r,echo=F}
+#Create a new df with all previous variables + goalkeeper position
+df_model_6 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.y,under_pressure,location.x.GK,location.y.GK)
+df_model_6$shot.outcome.name <- ifelse(df_model_6$shot.outcome.name == "Goal", 1, 0)
+
+#Replace NA with “false” in the under_pressure column
+df_model_6$under_pressure <- ifelse(is.na(df_model_6$under_pressure), FALSE, df_model_6$under_pressure)
+
+#Testing the model with only the location.x.GK variable
+glm.model_6_location.x.GK <- glm(shot.outcome.name ~ location.x.GK, data = df_model_6, family = binomial(link = "logit"))
+summary(glm.model_6_location.x.GK)
+
+AIC_model6_locx_GK=AIC(glm.model_6_location.x.GK)
+
+print(1-(glm.model_6_location.x.GK$deviance/glm.model_6_location.x.GK$null.deviance))
+```
+
+Significant effect of goal position in x because both $p_{values}$ are lower than 0.5. \
+The AIC value is low, equals to \texttt{`r AIC_model6_locx_GK`}.\
+
+Then we do the same but with the location.y.GK variable.\
+
+```{r,include=F}
+#We test the model with only the variable location.y.GK
+glm.model_6_location.y.GK <- glm(shot.outcome.name ~ location.y.GK, data = df_model_6, family = binomial(link = "logit"))
+summary(glm.model_6_location.y.GK)
+
+AIC_model6_locy_GK=AIC(glm.model_6_location.y.GK)
+
+
+R2_model6loc_y_GK=1-(glm.model_6_location.y.GK$deviance/glm.model_6_location.y.GK$null.deviance)
+print(R2_model6loc_y_GK)
+```
+
+We find that the variable for keeper position in y is significant as well.
+AIC is slightly higher than for position in x, it's equal to \texttt{`r AIC_model6_locy_GK`}.\
+
+
+### Complete model 
+
+
+
+```{r,include=F}
+#Testing the model with all df6 variables without interaction
+glm.model_6 <- glm(shot.outcome.name ~ ., data = df_model_6, family = binomial(link = "logit"))
+summary(glm.model_6)
+
+AIC_model6=AIC(glm.model_6)
+
+R2_model6=1-(glm.model_6$deviance/glm.model_6$null.deviance)
+print(R2_model6)
+
+```
+
+For the model with all the preceding variables and without interaction, we find a very low AIC=\texttt{`r AIC_model6`}. \
+We can conclude that this model is really good.\
+
+
+## Keeping all significant variables and removing location.y
+
+```{r,include=F}
+#We create a new df without location.y
+df_model_7 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,under_pressure,location.x.GK,location.y.GK)
+df_model_7$shot.outcome.name <- ifelse(df_model_7$shot.outcome.name == "Goal", 1, 0)
+
+#Replace NA with “false” in the under_pressure column
+df_model_7$under_pressure <- ifelse(is.na(df_model_7$under_pressure), FALSE, df_model_7$under_pressure)
+
+#Test the model with all variables
+glm.model_7 <- glm(shot.outcome.name ~ ., data = df_model_7, family = binomial(link = "logit"))
+summary(glm.model_7)
+
+AIC_model7=AIC(glm.model_7)
+
+R2_model7=1-(glm.model_7$deviance/glm.model_7$null.deviance)
+print(R2_model7)
+
+```
+
+Since we found that location.y is not significant, we can remove it from the model.\ 
+
+Without this variable, the AIC is even lower, at \texttt{`r AIC_model7`}.\
+
+We can conclude that we have found our best model for now and it's composed of the variables : 
+
+body_part, shot.technique, shot.type, location.x, under_pressure, location.x.GK, location.y.GK.\
+
+## Replacing location.y
+
+```{r, include=F}
+df_model_8 <- dplyr::select(shots,shot.outcome.name,location.x,location.y,)
+df_model_8 <- df_model_8 %>% mutate(distance_to_center = case_when(location.y >40 ~ location.y-40,
+                                                                   location.y<=40 ~ -(location.y-40)))
+
+df_model_8$shot.outcome.name <- ifelse(df_model_8$shot.outcome.name == "Goal", 1, 0)
+
+glm.model_8 <- glm(shot.outcome.name ~ location.x + distance_to_center, data = df_model_8, family = binomial(link = "logit"))
+summary(glm.model_8)
+
+AIC_model8=AIC(glm.model_8)
+
+R2_model8=1-(glm.model_8$deviance/glm.model_8$null.deviance)
+print(R2_model8)
+```
+
+Seeing as location.y is a very insignificant variable, we now view offense as symmetrical with respect to the axis passing by the center point of the pitch and the penalty spots. We will now refer to location.y as the distance to center, and the new variable will vary from 0 to 40 meters. This hopefully will give more sense to the parameter, as a high distance to center means a player is very off-center.
+
+```{r, echo = F,eval = TRUE}
+part = 256
+
+new_df_predicted <- data.frame(x = numeric(part^2),
+                         y = numeric(part^2))
+
+for (i in (1:part)){
+    for (j in (1:part)){
+      loc_x = ((i-1)*120 + i*120)/(2*part)
+      loc_y = ((j-1)*80 + j*80)/(2*part)
+      new_df_predicted[(i-1)*part+j,]$x = loc_x
+      new_df_predicted[(i-1)*part+j,]$y = loc_y
+  }
+}
+
+new_df_predicted <- new_df_predicted %>% mutate(location.x = x,
+                                                location.y = y,
+                                    distance_to_center = case_when(y >40 ~ y-40,
+                                                                   y<=40 ~ -(y-40)))
+
+new_df_predicted <- new_df_predicted %>% mutate(xg = predict(glm.model_8, new_df_predicted, type="response"))
+suppressWarnings(suppressMessages(create_Pitch(opposing=TRUE, Heatmap = TRUE, df_heatmap = new_df_predicted, grass_colour = NA, line_colour = "black")))
+```
+
+The above heatmap shows what is to be expected : from a very simple model, only using the location as well as the distance to center, we can see that the model expects a player to have better scoring chances with point-blank shots rather than shots outside the penalty area. This is explained by the fact that our data set does not contain many goals made from outside this area. 
+
+```{r,echo=F}
+
+#We want to compare our xg obtained with model 7 with those of statsbomb :
+
+#We have a size problem between the two vectors: there are missing values
+#We obtain the indices of missing observations for all variables in model 7
+
+indices_obs_manquantes <- which(!complete.cases(df_model_7))
+indices_non_manquants <- setdiff(1:nrow(df_model_7), indices_obs_manquantes)
+
+#Only rows with no missing observations are kept
+statsbomb_xg <- shots$shot.statsbomb_xg[indices_non_manquants]
+
+df_plot <- data.frame(statsbomb_xg = statsbomb_xg, fitted = glm.model_7$fitted.values)
+
+#We compare both
+ggplot(df_plot, aes(x = seq_along(statsbomb_xg))) +
+  geom_point(aes(y = statsbomb_xg), color = "blue") +
+  geom_point(aes(y = fitted), color = "red") +
+  labs(title = "Comparison of statsbomb_xg and fitted values",
+       x = "Observations",
+       y = "Values") +
+  theme_minimal()
+
+ggplot(df_plot, aes(x = seq_along(statsbomb_xg))) +
+  geom_point(aes(y = log(statsbomb_xg)), color = "blue") +
+  geom_point(aes(y = log(fitted)), color = "red") +
+  labs(title = "Comparison of statsbomb_xg and fitted values",
+       x = "Observations",
+       y = "Values") +
+  theme_minimal()
+
+
+#We plot one against the other: xg against our fitted values
+ggplot(df_plot, aes(x = statsbomb_xg, y = fitted)) +
+  geom_point() + 
+  geom_abline(intercept = 0, slope = 1, color = "red") + 
+  labs(title = "Comparison of statsbomb_xg and fitted values",
+       x = "statsbomb_xg",
+       y = "Fitted values") + 
+  theme_minimal()  
+
+#Same as transforming to log
+ggplot(df_plot, aes(x = log(statsbomb_xg), y = log(fitted))) +
+  geom_point() + 
+  geom_abline(intercept = 0, slope = 1, color = "red") + 
+  labs(title = "Comparison of statsbomb_xg and fitted values",
+       x = "statsbomb_xg",
+       y = "Fitted values") + 
+  theme_minimal()  
+
+
+```
+
+We have a lot of values close to 0, so we do the log to make things clearer.
+
+In log: there's a point (an observation) where we've overestimated the chance of scoring.
+There are a few points at the bottom right where, on the contrary, we've underestimated the probability, but overall we've got a good prediction based on the Xg of bomb stats.
+
+
+## Finding our best model with the AIC criterion
+
+```{r,echo=F}
+#Find the best model (that minimizes AIC)
+stepAIC(glm.model_6, trace=FALSE)
+```
+
+We can see finally that y-positions are useless even for the goalkeeper, only x-positions are significant.
+
+Our best model is composed of 4 variables : 
+The technique of shot, the body part used and the positions in x for the player and the goalkeeper.
+
