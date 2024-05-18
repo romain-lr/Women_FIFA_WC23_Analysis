@@ -24,7 +24,8 @@ header-includes:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-
+library(cowplot)
+library(patchwork)
 library(tidyverse)
 library(StatsBombR)
 library(extrafont)
@@ -84,6 +85,7 @@ Shots_All <- Events %>% filter(type.name=="Shot")
 
 Shots_All <- Shots_All  %>%  mutate(team = gsub(" ","",team.name),
                                       .keep="unused")
+#view(Shots_All)
 ```
 
 ```{r, include=FALSE}
@@ -684,17 +686,17 @@ df[nrow(df) + 1,] <- list("Mean Player", "Mean Player", mean_shots_nb, mean_shot
 
 
 ```{r fig7 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig7}Goal ratio on the number of totals shots for players",fig.height=4.5,fig.align='center'}
-ggplot(df, aes(total_shots, shots_completion_ratio, label = paste("player =", player, ", team =", team ), color = groupv2)) + geom_point() +  scale_color_viridis(discrete=TRUE) + geom_point(data = df[df$player == "Mean Player", ], aes(total_shots, shots_completion_ratio), shape = 4, color = "red4", size = 2)
+p <- ggplot(df, aes(total_shots, shots_completion_ratio, label = paste("player =", player, ", team =", team ), color = groupv2)) + geom_point() +  scale_color_viridis(discrete=TRUE) + geom_point(data = df[df$player == "Mean Player", ], aes(total_shots, shots_completion_ratio), shape = 4, color = "red4", size = 2)
 
 # Display “Mean Player” with a red cross
 #p <- p + geom_point(data = df[df$player == "Mean Player", ], aes(total_shots, shots_completion_ratio), shape = 4, color = "red4", size = 2)
 
-#ggplotly(p)
+ggplotly(p)
 ```
 
 Some information on this graph: the color of the dots represents, as indicated in the legend, at what stage of the competition the player's team finished, so the more the dots tend towards purple, the more matches the players played and therefore went further in the competition.
 The graph shows a clear trend: the more players have shot, the lower their ratio. Even so, the players on the best teams, those who finished in the best positions, often have a higher ratio than those on teams who lost earlier in the tournament.
-We also notice that the average (the red cross) is quite low compared to the points we see on the graph, intuitively we'd probably have placed it around 10 shots and 0.25 ratio. But then we realized that many points, especially those at the bottom of the graph with 0 goals scored, are superimposed, so there are many players who shot without scoring, which is fairly consistent with the match statistics of around ten shots per team for an average of between 1 and 4 goals per match.
+We also notice that the average (the red cross) is quite low compared to the points we see on the graph, intuitively we'd probably have placed it around 10 shots and 0.25 goal ratio. But then we realized that many points, especially those at the bottom of the graph with 0 goals scored, are superimposed, so there are many players who shot without scoring, which is fairly consistent with the match statistics of around ten shots per team for an average of between 1 and 4 goals per match.
 Now we miss an important information on this graphics. Indeed we can see that the most players attempted shots the less their ratio of successful shots is high, but we don't take into account the difficulty of the shots perfomed by the players. Indeed a penalty is intuitively easier to score than an open shot far for the goals and under the pressure of defenders. It's something we already saw in the Figure \ref{fig:fig4}, that goals on penalty occurred more often even though that there are less frequent in games.
 
 So, we ask ourselves base on which criteria we could try to implement the notion of shot's difficulty, and we find that the notion of Expected Goals is what we were looking for and that the Statsbomb dataset provide it with every shots attempt.
@@ -771,7 +773,7 @@ df2_player[nrow(df2_player) + 1,] <- list("Mean Player", "Mean Player", mean_sho
 ```
 
 
-```{r fig8 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fi8}Goal ratio on the Expected Goal ratio (Statsbomb model) for players",fig.height=4,fig.align='center'}
+```{r fig8 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig8}Goal ratio on the Expected Goal ratio (Statsbomb model) for players",fig.height=4,fig.align='center'}
 p2 <- ggplot(df2_player, aes(xG_ratio, shots_completion_ratio, size = total_shots, label = player, colour=groupv2)) + 
     geom_point(shape=21) + geom_abline(intercept = 0, slope = 1, linetype = "dashed") + scale_color_viridis(discrete=TRUE) + geom_point(data = df2_player[df2_player$team == "Mean Player", ], aes(xG_ratio, shots_completion_ratio, size = total_shots), shape = 4, color = "red4", stroke = 1) 
 
@@ -783,9 +785,9 @@ ggplotly(p2)
 ```
 
 This graph compares the number of goals predicted by Statsbomb with the number of goals actually scored. It shows whether players scored more or fewer goals than predicted by the Statsbomb model. We find the same biases as in the graph above: players who scored on their only shot are obviously better performers, but this is no guarantee of performance, as we can't assess the notion of regularity. The same applies to all players represented by the smaller circles.
-As none of the axes in this graph display the notion of number of shots taken, we are obliged to add this notion by modifying the size of the circle representing the player. This reinforces the caution of interpretation in relation to the number of matches played, which is already visible with the colors.
+As none of the axes in this graph display the notion of number of shots taken, we are obliged to add this notion by modifying the size of the circle representing the player. This reinforces the caution of interpretation in relation to the number of matches played and how often they had shot during the game.
 
-Now if we interpret this graph, we can see from the colors that the majority of players who have reached the quarter-finals or beyond are still around the dotted line that symbolizes player performance.
+Now if we interpret this graph, we can see from the colors that the majority of players who have reached the quarter-finals or beyond are still around the dotted line that symbolizes player performance. This line, with the equation y=x, symbolizes the expected performance of the players. Thus, we can deduce that players from teams that made it to the quarter-finals and beyond underperformed less often and even over-performed less, since they took more shots and so their data is less biased by a successful difficult shot.
 
 \clearpage
 
@@ -843,7 +845,7 @@ df_pays <- subset(df_pays, select = -c(player))
 
 n <- length(pays)
 
-#view(df_pays)
+view(df_pays)
 
 dftail <- df_pays[(nrow(df_pays)-(n - 1)):nrow(df_pays),] %>% mutate(team = gsub(" ","",team),
                                                                      shots_completion_ratio = total_goals/total_shots,
@@ -869,21 +871,27 @@ mean_shots_completion_ratio_pays = mean_goals_nb_pays/mean_shots_nb_pays
 
 dftail[nrow(dftail) + 1,] <- list("Mean Country", mean_shots_nb_pays, mean_shots_completion_ratio_pays, mean_goals_nb_pays, "Mean Country")
 
-#view(dftail)
+view(dftail)
 ```
 
 
-```{r fig9 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fi9}Goal ratio on the number of total shots for teams",fig.height=4,fig.align='center'}
-ggplot(dftail, aes(total_shots, shots_completion_ratio, label=team, color = groupv2)) + geom_text(aes(fontface=2)) + scale_color_viridis(discrete=TRUE) + geom_point(data = dftail[dftail$team == "Mean Country", ], aes(total_shots, shots_completion_ratio), shape = 4, color = "red4", size = 4)
+```{r fig9 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig9}Goal ratio on the number of total shots for teams",fig.height=5,fig.align='center'}
+p1 <- ggplot(dftail, aes(total_shots, shots_completion_ratio, label=team, color = groupv2)) + geom_text(aes(fontface=2)) + scale_color_viridis(discrete=TRUE) + geom_point(data = dftail[dftail$team == "Mean Country", ], aes(total_shots, shots_completion_ratio), shape = 4, color = "red4", size = 4)
 
 # Display “Mean Country” with a red cross
 #p1 <- p1 + geom_point(data = dftail[dftail$team == "Mean Country", ], aes(total_shots, shots_completion_ratio), shape = 4, color = "red4", size = 4)
 
-#ggplotly(p1)
+ggplotly(p1)
 ```
-So on this graph we can see that BLABLABLA.
+In this graph, countries are represented by dots with their name, and the color always indicates the stage of the competition they have reached. There's a clear separation between the bottom left of the image, representing countries with few shots and few goals, with teams that didn't make it beyond the quarter-finals, and the top right with the 8 best teams, excluding Colombia.
 
-As for the players wwe want to implement the Expected Goal data, so we can implement and analyze the dificulty of shots performed by teams.
+We can also see that Spain, winner of the tournament, shot much more than its rivals but scored less, so this could reflect a strong domination during the matches, but less good finishing. It would be interesting to see if the difficulty of the shots could explain the lower accuracy, or if there's another interpretation.
+
+Other outliers were Sweden, who finished 3rd and had the best ratio of successful shots. And Vietnam and Haiti, who didn't score a single goal during the competition.
+
+
+
+As for the players, we want to implement the Expected Goal data, so we can implement and analyze the difficulty of shots performed by teams.
 
 This his what the Figure \ref{fig:fig10} is showing true goal ratio on the Statsbomb xG ratio for every teams during the World Cup./
 ```{r,include=F}
@@ -971,17 +979,20 @@ df2tail[nrow(df2tail) + 1,] <- list("Mean Country", mean_shots_nb_pays, mean_sho
 ```
 
 
-```{r fig10 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fi10}Goal ratio on the Expected Goal ratio (Statsbomb model) for teams",fig.height=4,fig.align='center'}
-ggplot(df2tail, aes(xG_ratio, shots_completion_ratio, size = total_shots, label=team, color = groupv2)) + geom_text(aes(fontface=3)) + geom_abline(intercept = 0, slope = 1, linetype = "dashed") + scale_color_viridis(discrete=TRUE) + geom_point(data = df2tail[df2tail$team == "Mean Country", ], aes(xG_ratio, shots_completion_ratio, size = total_shots), shape = 4, color = "red4", stroke = 1)
+```{r fig10 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig10}Goal ratio on the Expected Goal ratio (Statsbomb model) for teams",fig.height=4,fig.align='center'}
+p3 <- ggplot(df2tail, aes(xG_ratio, shots_completion_ratio, size = total_shots, label=team, color = groupv2)) + geom_text(aes(fontface=3)) + geom_abline(intercept = 0, slope = 1, linetype = "dashed") + scale_color_viridis(discrete=TRUE) + geom_point(data = df2tail[df2tail$team == "Mean Country", ], aes(xG_ratio, shots_completion_ratio, size = total_shots), shape = 4, color = "red4", stroke = 1)
 
 # Display “Mean Country” with a red cross
 #p3 <- p3 + geom_point(data = df2tail[df2tail$team == "Mean Country", ], aes(xG_ratio, shots_completion_ratio, size = total_shots), shape = 4, color = "red4", stroke = 1)
 
-#ggplotly(p3)
+ggplotly(p3)
 ```
 
-So on this graph we can see that BLABLABLA.
+So, on this graph, we can complete our interpretations of the previous graph. Sweden, on the right-hand side of the graph, had the easiest shots on average according to Statsbomb's model, and succeeded as expected, or even a little better, as it lies slightly above the dotted line that marks the performance.
 
+As for Spain, we can see that they had the hardest shots of all the teams that made it through to the quarter-finals, with the exception of Colombia, which explains why they had a greater number of shots with a fairly low ratio compared to their main rivals.
+
+However, it is noticeable that the best teams have higher xGs, which means that their shots are more likely to succeed on average. This could mean that their forwards are putting themselves in better shooting situations, either because they are better or because the other teams' defenders are weaker. Thus, it could mean that the defense of the best teams is very strong compared to that of the teams eliminated earlier in the tournament, so these weaker teams had difficulty scoring.
 Now that we have compared the true goal ratio to the xG Statsbomb ratio, we were wondering how exactly is one xG model working. So, we decided to create our own xG model.\
 
 
@@ -994,6 +1005,7 @@ We wanted to create our own xG model. To do that we developed different models, 
 
 shots = WC2023_dataframe %>%
  filter(type.name=="Shot")
+#view(shots)
 ```
 
 We run a logistic regression model: we want the output to be 0 or 1 depending on whether the shot turns into a goal.\
@@ -1464,7 +1476,7 @@ print(R2_model8)
 Seeing as location.y is a very insignificant variable, we now view offense as symmetrical with respect to the axis passing by the center point of the pitch and the penalty spots. We will now refer to location.y as the distance to center, and the new variable will vary from 0 to 40 meters. This hopefully will give more sense to the parameter, as a high distance to center means a player is very off-center.
 
 ```{r, echo = F,eval = TRUE}
-part = 256
+part = 64
 
 new_df_predicted <- data.frame(x = numeric(part^2),
                          y = numeric(part^2))
@@ -1484,7 +1496,7 @@ new_df_predicted <- new_df_predicted %>% mutate(location.x = x,
                                                                    y<=40 ~ -(y-40)))
 
 new_df_predicted <- new_df_predicted %>% mutate(xg = predict(glm.model_8, new_df_predicted, type="response"))
-suppressWarnings(suppressMessages(create_Pitch(opposing=TRUE, Heatmap = TRUE, df_heatmap = new_df_predicted, grass_colour = NA, line_colour = "black")))
+suppressWarnings(suppressMessages(create_Pitch(opposing=TRUE, Heatmap = TRUE, df_heatmap = new_df_predicted, grass_colour = NA, line_colour = "white")))
 ```
 
 The above heatmap shows what is to be expected : from a very simple model, only using the location as well as the distance to center, we can see that the model expects a player to have better scoring chances with point-blank shots rather than shots outside the penalty area. This is explained by the fact that our data set does not contain many goals made from outside this area. 
@@ -1555,6 +1567,10 @@ There are a few points at the bottom right where, on the contrary, we've underes
 #Find the best model (that minimizes AIC)
 bestmod=stepAIC(glm.model_6, trace=FALSE)
 summary(bestmod)
+df_model_6_best <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.x.GK)
+#Note that for penalty kicks there is no value for the position of the goalkeeper on the pitch, so we set his position on his line, i.e. at x=119, in the location.x.GK column.
+df_model_6_best$location.x.GK <- ifelse(is.na(df_model_6_best$location.x.GK), 119.0, df_model_6_best$location.x.GK)
+view(df_model_6_best)
 ```
 
 We can see finally that y-positions are useless even for the goalkeeper, only x-positions are significant.
@@ -1562,7 +1578,7 @@ We can see finally that y-positions are useless even for the goalkeeper, only x-
 Our best model is composed of 5 variables : 
 The technique of shot, the type of shot, the body part used and the positions in x for the player and the goalkeeper.
 
-# Analysis of the Model performannce
+# Analysis of the Model performance
 
 Now that we have our model composed of these 5 variables, we asked ourselves if this type of model is better than the Statsbomb xG one, and overall we wanted to test the perfomance of our model !
 So as we previsouly did in the "Descriptive Analysis" part of our report we are conducting a comparison on the ratio of goals. Before, we did it between data we were given, but now we will predict the xG of every shot with our best model and then compare these xG value to the Statsbomb one on graphics.
@@ -1572,25 +1588,32 @@ Figure \ref{fig:fig11} shows a visualization of these results.\
 ```{r,echo=F}
 #view(df_model_6)
 # Predict results for each shot in the dataframe
-xG_predi <- predict(bestmod, newdata = df_model_6, type = "response")
+xG_predi <- predict(bestmod, newdata = df_model_6_best, type = "response")
 
 # Add pass probabilities to the original dataframe
-df_model_6$xG_predi <- xG_predi
+df_model_6_best$xG_predi <- xG_predi
 
 # Display dataframe with predictions
-print(df_model_6)
+print(df_model_6_best)
 ```
 
 ```{r,echo=F}
-#view(Shots_All)
-Shots_exp_predi <- subset(Shots_All, select = c(team, player.name,shot.statsbomb_xg))
+Shots_exp_predi <- subset(shots, select = c(team.name, player.name,shot.statsbomb_xg,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.x.GK))
 Shots_exp_predi <- Shots_exp_predi  %>%  mutate(player = player.name,
-                                      team = gsub("Women's","",team),
                                       .keep="unused")
-# Calculer les probabilités prédites de réussite de chaque passe (xP)
+#Note that for penalty kicks there is no value for the position of the goalkeeper on the pitch, so we set his position on his line, i.e. at x=120, in the location.x.GK column.
+Shots_exp_predi$location.x.GK <- ifelse(is.na(Shots_exp_predi$location.x.GK), 120.0, Shots_exp_predi$location.x.GK)
+
+# Calculer les probabilités prédites de réussite de chaque passe (xG)
+xG_predi <- predict(bestmod, newdata = Shots_exp_predi, type = "response")
+
 Shots_exp_predi$xG_predi <- xG_predi
+Shots_exp_predi$xGdiff <- Shots_exp_predi$shot.statsbomb_xg - Shots_exp_predi$xG_predi
+
+
 #view(xG_predi)
-#view(Shots_exp_predi)
+view(Shots_exp_predi)
+
 
 df_shot_xG_succeed <- aggregate(x = Shots_exp_predi$shot.statsbomb_xg, by = list(Shots_exp_predi$player), FUN = sum)
 df_shot_xGpredi_succeed <- aggregate(x = Shots_exp_predi$xG_predi, by = list(Shots_exp_predi$player), FUN = sum)
@@ -1616,7 +1639,6 @@ df3 <- df3 %>% mutate(xG_ratio = df_shot_xG_succeed$xG/total_shots,
                       xG_predi_ratio = df_shot_xGpredi_succeed$xG_predi/total_shots,
                         total_shots=total_shots,
                         .keep = "unused")
-#view(df2p)
 
 print(length(df3$player))
 
@@ -1657,87 +1679,85 @@ df3_player[nrow(df3_player) + 1,] <- list("Mean Player", "Mean Player", mean_sho
 ```
 
 
-```{r fig11 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fi11}StatsBomb xG ratio on our xG ratio based on bestmod for players",fig.height4=,fig.align='center'}
-
-ggplot(df3_player, aes(xG_predi_ratio, xG_ratio, size = total_shots, label = player, colour=groupv2)) + 
-    geom_point(shape=21) + geom_abline(intercept = 0, slope = 1, linetype = "dashed") + scale_color_viridis(discrete=TRUE) + geom_point(data = df3_player[df3_player$team == "Mean Player", ], aes(xG_predi_ratio, xG_ratio,  size = total_shots), shape = 4, color = "red4", stroke = 1)
+```{r fig11 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fi11}StatsBomb xG ratio on our xG ratio based on bestmod for players",fig.height=4.5,fig.align='center'}
+p4 <-ggplot(df3_player, aes(xG_predi_ratio, xG_ratio, size = total_shots, label = player, colour=groupv2)) + geom_point(shape=21) + geom_abline(intercept = 0, slope = 1, linetype = "dashed") + scale_color_viridis(discrete=TRUE) + geom_point(data = df3_player[df3_player$team == "Mean Player", ], aes(xG_predi_ratio, xG_ratio, size = total_shots), shape = 4, color = "red4", stroke = 1)
 
 # Display “Mean Player” with a red cross
 #p4 <- p4 + geom_point(data = df3_player[df3_player$team == "Mean Player", ], aes(xG_predi_ratio, xG_ratio,  size = total_shots), shape = 4, color = "red4", stroke = 1)
 
-#ggplotly(p4)
+ggplotly(p4)
 ```
 
-Figure \ref{fig:fig12} shows a visualization of these results.\
+We notice that if we display the ratio of the xG we predicted to those from Statsbomb, the results vary very little, which means our model is quite close to that of Statsbomb! However, to accurately compare our model with Statsbomb's, we should display the xG for each shot. 
+
+This is what the \ref{fig:fig12} below shows:
+
+```{r fig12 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig12}StatsBomb xG  on our xG  based on bestmod for every shots in the World Cup",fig.height=4.5,fig.align='center'}
+pp <-ggplot(Shots_exp_predi, aes(xG_predi, shot.statsbomb_xg, color=xGdiff)) + geom_point(shape=21) + geom_abline(intercept = 0, slope = 1, linetype = "dashed") +   scale_color_gradientn(colors = c("darkblue", "blue3", "blue2", "darkolivegreen3", "gold" ,"darkgoldenrod2", "darkred"))
+
+ggplotly(pp)
+```
+We can see that for the vast majority of shots, our models are similar! However, we do notice some outliers, which can be explained by displaying, for example, the type of shot, whether it is a free kick, an open play shot, a penalty, a corner, etc. This is shown in \ref{fig:fig13} below:
+
+```{r,echo=F}
+view(Shots_exp_predi)
+
+df_xGdiff <- Shots_exp_predi[order(Shots_exp_predi$xGdiff),] #on trie le dataframe par ordre croissant de la différence des xG de statsbomb et notre xG
+#view(df_xGdiff)
+
+#On récupére les x premières lignes (les plus grandes valeurs)
+x <- 50
+df_top_xGdiff <- head(df_xGdiff, x)
+df_low_xGdiff <- tail(df_xGdiff, x)
 
 
-```{r}
-#pays = c("France", "England", "Spain", "Switzerland") #Countries we wish to observe
-pays <- melt(df3$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #select all teams
+#view(df_top_xGdiff)
+#view(df_low_xGdiff)
 
-#view(pays)
+df_top_xGdiff$source <- "Pos xG Diff"
+df_low_xGdiff$source <- "Neg xG Diff"
 
-df3_pays <- df3[df3$team %in% pays,]
-#view(df3_pays)
-
-for (i in 0:length(pays))
-  df3_pays[nrow(df3_pays) + 1, ] <- list(paste("",pays[i]), paste("", pays[i]),
-                                        sum(df3_pays$total_shots[df3_pays$team == pays[i]]),
-                                        sum(df3_pays$shots_completion_ratio[df3_pays$team == pays[i]]),
-                                        sum(df3_pays$total_goals[df3_pays$team == pays[i]]),
-                                        sum(df3_pays$xG_ratio[df3_pays$team == pays[i]]),
-                                        sum(df3_pays$xG[df3_pays$team == pays[i]]),
-                                        sum(df3_pays$xG_predi[df3_pays$team == pays[i]]),
-                                        sum(df3_pays$xG_predi_ratio[df3_pays$team == pays[i]]))
-  
-df3_pays <- subset(df3_pays, select = -c(player))
-
-#view(df3_pays)
-n <- length(pays)
-
-df3tail <- df3_pays[(nrow(df3_pays)-(n - 1)):nrow(df3_pays),]  %>% mutate(team = gsub(" ","",team),
-                                                                    shots_completion_ratio = total_goals/total_shots,
-                                                                    total_shots = total_shots,
-                                                                    total_goals = total_goals,
-                                                                    xG = xG,
-                                                                    xG_ratio = xG/total_shots,
-                                                                    xG_predi = xG_predi,
-                                                                    xG_predi_ratio = xG_predi/total_shots,
-                                                                    .keep = "unused")
-
-df3tail$groupv2 <- ifelse(df3tail$team %in% pays_gs, "8-GS",
-                              ifelse(df3tail$team %in% pays_r16, "7-R16",
-                                     ifelse(df3tail$team %in% pays_quarterfinals, "6-Quarterfinals",
-                                            ifelse(df3tail$team == "Australia", "4th",
-                                                   ifelse(df3tail$team == "Sweden", "3rd",
-                                                          ifelse(df3tail$team == "England", "2nd",
-                                                                 ifelse(df3tail$team=="Spain","1st","NA")))))))
-
-mean_shots_nb_pays = mean(df3tail$total_shots)
-mean_goals_nb_pays = mean(df3tail$total_goals)
-mean_shots_completion_ratio_pays = mean_goals_nb_pays/mean_shots_nb_pays
-mean_shots_xG_pays = mean(df3tail$xG)
-mean_shots_xG_ratio_pays = mean_shots_xG_pays/mean_shots_nb_pays
-mean_shots_xG_predi_pays = mean(df3tail$xG_predi)
-mean_shots_xG_predi_ratio_pays = mean_shots_xG_predi_pays/mean_shots_nb_pays
-
-df3tail[nrow(df3tail) + 1,] <- list("Mean Country", mean_shots_nb_pays, mean_shots_completion_ratio_pays, mean_goals_nb_pays, mean_shots_xG_ratio_pays, mean_shots_xG_pays, mean_shots_xG_predi_pays, mean_shots_xG_predi_ratio_pays, "Mean Country")
-
-
-#view(df3tail)
-
-
+# Combiner les deux DataFrames
+df_combined <- rbind(df_top_xGdiff, df_low_xGdiff)
 ```
 
 
-```{r fig12 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fi12}StatsBomb xG ratio on our xG ratio based on bestmod for teams",fig.height=4,fig.align='center'}
-ggplot(df3tail, aes(xG_predi_ratio, xG_ratio, size = total_shots, label=team, color = groupv2)) + geom_text(aes(fontface=3)) + geom_abline(intercept = 0, slope = 1, linetype = "dashed") + scale_color_viridis(discrete=TRUE) + geom_point(data = df3tail[df3tail$team == "Mean Country", ], aes(xG_predi_ratio, xG_ratio,  size = total_shots), shape = 4, color = "red4", stroke = 1)
+```{r fig13 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig13}StatsBomb xG  on our xG  based on bestmod and the type of shots for the 100 shots with the higher xG difference",fig.height=4.5,fig.align='center'}
+p_combined <- ggplot(df_combined, aes(x = xG_predi, y = shot.statsbomb_xg, label = shot.type.name, color = source)) +
+  geom_text(aes(fontface=3)) +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+  labs(color = "Source") +
+  theme_minimal()
 
-# Display “Mean Country” with a red cross
-#p5 <- p5 + geom_point(data = df3tail[df3tail$team == "Mean Country", ], aes(xG_predi_ratio, xG_ratio,  size = total_shots), shape = 4, color = "red4", stroke = 1)
-
-#ggplotly(p5)
+ggplotly(p_combined)
 ```
+
+
+```{r, eval=F, echo=F}
+p_combined2 <- ggplot(df_combined, aes(x = xG_predi, y = shot.statsbomb_xg, label = shot.body_part.name, color = source)) +
+  geom_text(aes(fontface=3)) +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+  labs(color = "Source") + 
+  theme_minimal()
+
+ggplotly(p_combined2)
+
+p_combined3 <- ggplot(df_combined, aes(x = xG_predi, y = shot.statsbomb_xg, label = shot.technique.name, color = source)) +
+  geom_text(aes(fontface=3)) +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+  labs(color = "Source") +
+  theme_minimal()
+
+# Afficher le graphique combiné
+ggplotly(p_combined3)
+```
+
+We can see a clear example of bias in our model: the 'Corner' at the bottom right of the graph, where our model predicts an xG of 1 and Statsbomb predicts an xG of almost 0. In fact, during the competition, there was an in-swinging corner that was attempted and succeeded, so our model, having been trained only on this competition, now classifies all in-swinging corners as shots with a goal probability of more than 0.99. On the other hand, Statsbomb's model, likely trained on many more competitions, has enough historical data to see that this rare type of shot very seldom results in a goal, thus it assigns a probability close to 0.
+
+For the other points, it is more complicated to explain. Indeed, they are almost all open play shots, so many other parameters come into play. Our model only considers five: the type of shot (penalty, free kick, open play, etc.), the shot technique (normal, lob, volley, bicycle kick, etc.), the part of the body used for the shot, and the distance to the goal of the player and the goalkeeper. Therefore, we are probably missing some information, such as the shot angle or whether the player was under pressure, or we need more data from women's football tournaments to refine our model and smooth out the peculiarities of this competition and the impact of anomalies, like the in-swinging corner, by analyzing more than 64 matches.
+
+
+# Expected Pass model
 
 
 
