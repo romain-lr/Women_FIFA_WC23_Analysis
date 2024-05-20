@@ -1,10 +1,10 @@
 ---
-title: "Projet_Women_FIFA_WC23_Analysis"
+#title: "Projet_Women_FIFA_WC23_Analysis"
 institute: INSA Toulouse
 date: "`r Sys.Date()`"
 output:
   pdf_document:
-    toc: true
+    toc: false
     toc_depth: 3
     number_section: true
     fig_caption: true
@@ -18,11 +18,47 @@ header-includes:
 - \newcommand{\1}{\mathds{1}}
 ---
 
+\begin{titlepage}
+\centering
+\vspace*{1cm}
+
+{\Huge \bfseries Projet Women FIFA WC23 Analysis \par}
+
+\vspace{1.5cm}
+
+{\Large INSA Toulouse\par}
+
+\vspace{2cm}
+
+{\large Date : May, 21st 2024\par}
+
+\vspace{2cm}
+
+{\Large Authors :\\
+Canouet Eugénie\\
+Laurié Romain\\
+Richaume Julien\par}
+
+{\Large Tutors :\\
+Dejean Sébastien\\
+Saint Pierre Phillipe\par}
+
+\vfill
+
+\end{titlepage}
+
+\newpage
+
+\tableofcontents
+
+\newpage
+
 ```{r, include=FALSE}
 #Eval=False : on compile pas le chunk
 #Include=False : on affiche rien
 #Echo=False : on affiche que la sortie
 ```
+
 
 
 ```{r setup, include=FALSE}
@@ -47,6 +83,15 @@ library(viridis)
 ```
 
 \newpage
+
+# Abstract 
+
+ 
+Football is a multi-billion dollar industry, but many questions remain about the intricate predictors of a given team’s success. Many have explored the impact of possession such as Collet who studied the impact of possession in 2013. We examined the success of national teams that took part in the 2023 FIFA Women’s World Cup, using public data available on StatsBomb. Firstly, we used descriptive statistics to gain advanced comprehension on the ways teams develop and convert advantages on other teams.
+We examined passing, shooting, and advanced metrics such as expected goals (xG) and expected passes (xP). We tried to distinguish tendencies and differences in styles of play between teams, and individual players. We managed to develop our own xG model, therefore finding the most relevant criteria to predict goals, in order to compare it to the StatsBomb’s one, and build visualizations based on it. We also plotted player’s and team’s pass completion rate, as well as their goal to shot ratio. Using our model, we managed to explain the success of designated teams, and the failures of others.
+
+
+
 
 # Introduction
 
@@ -2275,6 +2320,24 @@ ggplotly(p11)
 
 \clearpage
 
-#Conclusion
+# Conclusion
 
 After acquiring a substantial understanding of football indicators, as well as the way StatsBomb keeps track of football data, we were able to distinguish trends in the winning, as well as the losing teams of the 2023 FIFA Women’s World Cup. We looked at specific teams, such as France or Colombia, and managed to explain some of their success. Using basic logistic regression, and with only a very limited data set, we implemented our own expected goal metric. Through many variable selection steps, we were able to come very close to the xG calculated by StatsBomb. Future research could expand on this analysis by incorporating more diverse datasets, including data from other tournaments and leagues, and use more advanced regression techniques, such as support vector machine or neural networks, to predict more accurately the probability of a goal.
+
+
+\newpage
+# References
+
+[1] Christian Collet (2012). *The possession game? A comparative analysis of ball retention and team success in European and international football, 2007–2010* Retrieved from [https://www.tandfonline.com/doi/full/10.1080/02640414.2012.727455#:~:text=Using%20data%20from%20five%20European%20leagues%2C%20UEFA%20and,team%20quality%20and%20home%20advantage%20were%20accounted%20for.](https://www.tandfonline.com/doi/full/10.1080/02640414.2012.727455#:~:text=Using%20data%20from%20five%20European%20leagues%2C%20UEFA%20and,team%20quality%20and%20home%20advantage%20were%20accounted%20for.)
+
+[2] StatsBomb. (2022). *StatsBombR: R Wrapper for StatsBomb Data.* Retrieved from [https://github.com/statsbomb/StatsBombR](https://github.com/statsbomb/StatsBombR)
+
+[3] StatsBomb. (2022). *StatsBombR: R Wrapper for StatsBomb Data.* Retrieved from [https://statsbomb.com/](https://statsbomb.com/)
+
+[4] StatsBombR Specifications. Retrieved from [https://github.com/statsbomb/StatsBombR](https://github.com/statsbomb/StatsBombR)
+
+[5] Working with R: Accessing & Working With StatsBomb Data In R. (2021). Retrieved from [https://statsbomb.com/wp-content/uploads/2021/11/Working-with-R.pdf](https://statsbomb.com/wp-content/uploads/2021/11/Working-with-R.pdf)
+
+
+\newpage
+\listoffigures
