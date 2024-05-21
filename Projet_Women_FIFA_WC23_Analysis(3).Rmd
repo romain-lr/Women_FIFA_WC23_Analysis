@@ -842,17 +842,18 @@ ggplotly(p2)
 p2
 ```
 
-This graph compares the number of goals predicted by StatsBomb with the number of goals actually scored. It shows whether players scored more or fewer goals than predicted by the StatsBomb model. We find the same biases as in the graph above: players who scored on their only shot are obviously better performers, but this is no guarantee of performance, as we can't assess the notion of regularity. The same applies to all players represented by the smaller circles.
-As none of the axes in this graph display the notion of number of shots taken, we are obliged to add this notion by modifying the size of the circle representing the player. This reinforces the caution of interpretation in relation to the number of matches played and how often they had shot during the game.
+This graph compares the number of goals predicted by StatsBomb with the actual goals scored. It shows whether players scored more or fewer goals than the StatsBomb model predicted. We observe the same biases as in the previous graph: players who scored on their only shot appear to be better performers, but this does not guarantee consistent performance, as we cannot assess regularity. This observation also applies to all players represented by the smaller circles.
 
-Now if we interpret this graph, we can see from the colors that the majority of players who have reached the quarter-finals or beyond are still around the dotted line that symbolizes player performance. This line, with the equation y=x, symbolizes the expected performance of the players. Thus, we can deduce that players from teams that made it to the quarter-finals and beyond underperformed less often and even over-performed less, since they took more shots and so their data is less biased by a successful difficult shot.\
+Since neither axis in this graph displays the number of shots taken, we add this information by modifying the size of the circle representing each player. This adjustment emphasizes the importance of considering the number of matches played and the frequency of shots taken during the game.
+
+Interpreting this graph, we can see from the colors that most players who reached the quarter-finals or beyond are clustered around the dotted line, which symbolizes player performance. This line, represented by the equation y = x, indicates the expected performance of the players. Thus, we can deduce that players from teams that advanced to the quarter-finals and beyond under performed less frequently and over performed less often, as they took more shots, reducing the bias from a single successful difficult shot.\
 
 
 ### Teams scoring ratio
 
-Secondly, we decided to look at teams, we are running the same analysis as for the players but this could lead to other analysis. Indeed it's reducing the number of outliers, because we are conduction an analysis on all team players that have shot at least once during the tournament. Indeed if a midfielder player has shot only once and scored and a striker has shot 10 times for only 2 goals this bias of the midfielder has less impact on her team. So, with this team analysis we could say overall which team underperform inter of goals, and try to find if it's correlated to the team who lost earliest during the competition.
+Secondly, we analyzed teams using the same method we applied to players, which could lead to additional insights. This approach reduces the number of outliers because we are analyzing all team players who took at least one shot during the tournament. For instance, if a midfielder took only one shot and scored, while a striker took ten shots and scored twice, the mid-fielder's bias has less impact on the team's overall performance. Therefore, this team analysis allows us to determine which teams under performed in terms of goals and to investigate whether this correlates with the teams that were eliminated earliest in the competition.
 
-Figure \ref{fig:fig9} shows a visualization of the goal ratio on the total shots performed by teams which have performed at least 1 shots during the World Cup.\
+Figure \ref{fig:fig9} visualizes the goal ratio relative to the total shots taken by teams that made at least one attempt during the World Cup.\
 
 ```{r,include=F}
 df_shots_total <- aggregate(x = Shots$outcome, by = list(Shots$player), FUN = length)
@@ -941,17 +942,15 @@ p1 <- ggplot(dftail, aes(total_shots, shots_completion_ratio, label=team, color 
 ggplotly(p1)
 p1
 ```
-In this graph, countries are represented by dots with their name, and the color always indicates the stage of the competition they have reached. There's a clear separation between the bottom left of the image, representing countries with few shots and few goals, with teams that didn't make it beyond the quarter-finals, and the top right with the 8 best teams, excluding Colombia.
+In this graph, countries are represented by dots labeled with their names, and the color indicates the stage of the competition they reached. There is a clear separation between the bottom left of the image, which represents countries with few shots and few goals, and the top right, which includes the eight best teams, excluding Colombia.
 
-We can also see that Spain, winner of the tournament, shot much more than its rivals but scored less, so this could reflect a strong domination during the matches, but less good finishing. It would be interesting to see if the difficulty of the shots could explain the lower accuracy, or if there's another interpretation.
+We observe that Spain, the tournament winner, took many more shots than its rivals but scored less, suggesting strong domination during matches but less effective finishing. It would be interesting to investigate whether the difficulty of the shots explains the lower accuracy or if there is another interpretation.
 
-Other outliers were Sweden, who finished 3rd and had the best ratio of successful shots. And Vietnam and Haiti, who didn't score a single goal during the competition.
+Other outliers include Sweden, which finished third and had the highest ratio of successful shots, and Vietnam and Haiti, which did not score a single goal during the competition.
 
+Similar to our player analysis, we aim to implement Expected Goal (xG) data to assess and analyze the difficulty of shots taken by teams.
 
-
-As for the players, we want to implement the Expected Goal data, so we can implement and analyze the difficulty of shots performed by teams.
-
-This his what the Figure \ref{fig:fig10} is showing true goal ratio on the StatsBomb xG ratio for every teams during the World Cup.\
+Figure \ref{fig:fig10} shows the true goal ratio relative to the StatsBomb xG ratio for each team during the World Cup.\
 ```{r,include=F}
 Shots_exp <- subset(Shots_All, select = c(shot.statsbomb_xg,team, player.name))
 
@@ -1047,18 +1046,19 @@ ggplotly(p3)
 p3
 ```
 
-So, on this graph, we can complete our interpretations of the previous graph. Sweden, on the right-hand side of the graph, had the easiest shots on average according to StatsBomb's model, and succeeded as expected, or even a little better, as it lies slightly above the dotted line that marks the performance.
+In this graph, we can extend our interpretations from the previous graph. Sweden, on the right-hand side of the graph, had the easiest shots on average according to StatsBomb's model and performed as expected, or even slightly better, as it lies just above the dotted line that marks expected performance.
 
-As for Spain, we can see that they had the hardest shots of all the teams that made it through to the quarter-finals, with the exception of Colombia, which explains why they had a greater number of shots with a fairly low ratio compared to their main rivals.
+For Spain, we see that they had the most difficult shots among all the teams that reached the quarter-finals, except for Colombia. This explains why Spain had a higher number of shots with a relatively low success ratio compared to their main rivals.
 
-However, it is noticeable that the best teams have higher xGs, which means that their shots are more likely to succeed on average. This could mean that their forwards are putting themselves in better shooting situations, either because they are better or because the other teams' defenders are weaker. Thus, it could mean that the defense of the best teams is very strong compared to that of the teams eliminated earlier in the tournament, so these weaker teams had difficulty scoring.
-Now that we have compared the true goal ratio to the xG StatsBomb ratio, we were wondering how exactly is one xG model working. So, we decided to create our own xG model.\
+It is noticeable that the best teams have higher xGs, indicating that their shots are more likely to succeed on average. This could mean that their forwards are getting into better shooting positions, either due to their superior skill or because the opposing teams' defenders are weaker. This suggests that the defense of the best teams is significantly stronger compared to that of the teams eliminated earlier in the tournament, making it difficult for these weaker teams to score.
+
+Having compared the true goal ratio to the StatsBomb xG ratio, we wanted to understand how an xG model works in detail. Therefore, we decided to create our own xG model.\
 
 \clearpage
 
 # Models analysis
 
-We wanted to create our own xG model. To do that we developed different models, finding the most relevant variables to predict goals.\
+We developed various models to create our own xG model, identifying the most relevant variables for predicting goals.\
 
 ```{r,include=F}
 #We create a df with just the shots
@@ -1146,7 +1146,7 @@ Our goal in creating the different models in this section is to find the most ac
 
 ## Model 3 : Adding location.x and location.y
 
-Any player on the field is assimilated as a moving point on a rectangle of size 80x120m. Its horizontal movement - that is, going from one goal post to another - is tracked by the variable location.x, while the vertical movement is associated to location.y. We now add location.x and location.y to our previously adjusted model. \
+Any player on the field is represented as a moving point within a rectangle measuring 80 by 120 meters. The player's horizontal movement, from one goal post to another, is tracked by the variable location.x, while the vertical movement is tracked by location.y. We have now added location.x and location.y to our previously adjusted model. \
 
 ```{r,include=F}
 df_model_3 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.y)
@@ -1521,7 +1521,7 @@ R2_model8=1-(glm.model_8$deviance/glm.model_8$null.deviance)
 print(R2_model8)
 ```
 
-Seeing as location.y is a very insignificant variable, we now view offense as symmetrical with respect to the axis passing by the center point of the pitch and the penalty spots. We refer to location.y as the distance to center, and the new variable will vary from 0 to 40 meters. This hopefully will give more sense to the parameter, as a high distance to center means a player is very off-center.
+Since location.y is a very insignificant variable, we now consider offense as symmetrical with respect to the axis passing through the center point of the pitch and the penalty spots. We redefine location.y as the distance to center, with this new variable ranging from 0 to 40 meters. This adjustment should give more meaningful insights, as a high distance to center indicates that a player is very off-center.
 
 ```{r, echo = F,eval = TRUE, warning=FALSE}
 options(repr.plot.height = 20, repr.plot.width = 10, repr.res = 1000)
@@ -1548,7 +1548,7 @@ new_df_predicted <- new_df_predicted %>% mutate(xg = predict(glm.model_8, new_df
 create_Pitch(opposing=TRUE, Heatmap = TRUE, df_heatmap = new_df_predicted, grass_colour = NA, line_colour = "white", goaltype = "box")
 ```
 
-The above heatmap shows what is to be expected : from a very simple model, only using the location as well as the distance to center, the results show that the model expects a player to have better scoring chances with point-blank shots rather than shots outside the penalty area. This is easily explained by the fact that our data set does not contain many goals made from outside this area. 
+The heat map above shows expected results: from a very simple model that only uses location and distance to center, the model predicts better scoring chances for point-blank shots compared to shots taken outside the penalty area. This is easily explained by the fact that our dataset contains few goals made from outside this area.
 
 ```{r,echo=F, include = F}
 #We want to compare our xg obtained with model 7 with those of statsbomb :
@@ -1606,9 +1606,9 @@ ggplot(df_plot, aes(x = log(statsbomb_xg), y = log(fitted))) +
 
 ```
 
-We have a lot of values close to 0, so we use a log transformation to better observe the residuals.
+We have many values close to 0, so we use a log transformation to better observe the residuals.
 
-The data indicate that only one point is being overestimated by our model. It is the goal made from a corner kick mentioned previously. Our model predicts an xG of 1, which perfectly demonstrates the limits of our model. We only worked on this reduced data set, and since only one corner shot was attempted, our model wrongly assumes it is the most efficient shot out there. After transforming the residuals to their logarithmic counterpart, they seem for the most part well-adjusted, with a large majority of them grouping around the desired spot. In the bottom right corner, are points where our model underestimates the chance of a goal happening. These seem to be goals that were taken from far away, and our model seems to consistently underestimate those. Again, this is most likely a consequence of our small data set. Overall, our model seems to get relatively close to the xG of StatsBomb.
+The data indicate that only one point is being overestimated by our model. This point corresponds to the goal made from a corner kick mentioned previously. Our model predicts an xG of 1, perfectly illustrating the limits of our model. We only worked on this reduced data set, and since only one corner shot was attempted, our model incorrectly assumes it is the most efficient shot. After transforming the residuals to their logarithmic counterparts, they appear well-adjusted for the most part, with the majority clustering around the desired spot. In the bottom right corner, we find points where our model underestimates the chance of a goal. These seem to be goals taken from far away, and our model consistently underestimates them. This is likely a consequence of our small data set. Overall, our model gets relatively close to the xG of StatsBomb.
 
 
 ## Finding our best model with the AIC criterion
@@ -1630,10 +1630,11 @@ The technique of shot, the type of shot, the body part used and the positions in
 
 # Analysis of the Model performance
 
-Now that we have our model composed of these 5 variables, we asked ourselves if this type of model is better than the StatsBomb xG one, and overall we wanted to test the perfomance of our model !
-So as we previsouly did in the "Descriptive Analysis" part of our report we are conducting a comparison on the ratio of goals. Before, we did it between data we were given, but now we predict the xG of every shot with our best model and then compare these xG value to the StatsBomb one on graphics.
+Now that we have developed our model composed of these five variables, we have questioned whether this type of model is superior to the StatsBomb xG model. Our primary objective is to assess the performance of our model.
 
-Figure \ref{fig:fig11} shows a visualization of these results.\
+Similar to the comparison conducted in the "Descriptive Analysis" section of our report, we are now comparing the ratio of goals. However, instead of comparing given data, we predict the xG of every shot using our best model and then compare these xG values to those provided by StatsBomb through visual graphics.
+
+Figure \ref{fig:fig11} presents a visualization of these results.\
 
 
 ```{r,echo=F}
@@ -1730,9 +1731,9 @@ ggplotly(p4)
 p4
 ```
 
-We notice that if we display the ratio of the xG we predicted to those from StatsBomb, the results vary very little, which means our model is quite close to that of StatsBomb! However, to accurately compare our model with StatsBomb's, we should display the xG for each shot. 
+We observe that when displaying the ratio of the xG we predicted to those from StatsBomb, the results exhibit very little variation, indicating that our model closely aligns with that of StatsBomb! However, for a precise comparison between our model and StatsBomb's, it is essential to display the xG for each shot.
 
-This is what the \ref{fig:fig12} below shows:\
+This is depicted in Figure \ref{fig:fig12} below:\
 
 ```{r fig12 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig12}StatsBomb xG  on our xG  based on bestmod for every shots in the World Cup",fig.height=4.5,fig.align='center'}
 pp <-ggplot(Shots_exp_predi, aes(xG_predi, shot.statsbomb_xg, color=xGdiff)) + geom_point(shape=21) + geom_abline(intercept = 0, slope = 1, linetype = "dashed") +   scale_color_gradientn(colors = c("darkblue", "blue3", "blue2", "darkolivegreen3", "gold" ,"darkgoldenrod2", "darkred")) + labs(x = "Our Model's Prediction of the xG's ratio", y = "StatsBomb's Model xG's Ratio", fill = "Differences of xG", color = "Differences of xG")
@@ -1741,7 +1742,7 @@ ggplotly(pp)
 pp
 ```
 
-Results show that our models are similar for the vast majority of shots. However, we do notice some outliers, which can be explained by displaying, for example, the type of shot, whether it is a free kick, an open play shot, a penalty, a corner, etc. This is shown in \ref{fig:fig13} below:\
+The results indicate that our models are comparable for the majority of shots. Nonetheless, we do observe some outliers, which may be elucidated by including additional factors such as the type of shot, whether it is a free kick, an open play shot, a penalty, a corner, and so forth. This is illustrated in Figure \ref{fig:fig13} below:\
 
 ```{r,echo=F}
 #view(Shots_exp_predi)
@@ -1799,18 +1800,20 @@ p_combined3 <- ggplot(df_combined, aes(x = xG_predi, y = shot.statsbomb_xg, labe
 ggplotly(p_combined3)
 ```
 
-Our results show a clear example of bias in the model: the 'Corner' at the bottom right of the graph, where our model predicts an xG of 1 and StatsBomb predicts an xG of almost 0. In fact, during the competition, there was an in-swinging corner that was attempted and succeeded, so our model, having been trained only on this competition, now classifies all in-swinging corners as shots with a goal probability of more than 0.99. On the other hand, StatsBomb's model, likely trained on many more competitions, has enough historical data to see that this rare type of shot very seldom results in a goal, thus it assigns a probability close to 0.
+Our results reveal a prominent bias in the model, particularly evident in the 'Corner' category situated at the bottom right of the graph. In this instance, our model predicts an xG of 1, while StatsBomb predicts an xG of almost 0. During the competition, there was a successful in-swinging corner, leading our model, trained solely on this event, to classify all in-swinging corners as shots with a goal probability exceeding 0.99. Conversely, StatsBomb's model, likely trained on a broader dataset, possesses enough historical data to recognize that this rare type of shot seldom results in a goal, thereby assigning a probability close to 0.
 
-For the other points, it is more complicated to explain. Indeed, they are almost all open play shots, so many other parameters come into play. Our model only considers five: the type of shot (penalty, free kick, open play, etc.), the shot technique (normal, lob, volley, bicycle kick, etc.), the part of the body used for the shot, and the distance to the goal of the player and the goalkeeper. Therefore, we are probably missing some information, such as the shot angle or whether the player was under pressure, or we need more data from women's football tournaments to refine our model and smooth out the peculiarities of this competition and the impact of anomalies, like the in-swinging corner, by analyzing more than 64 matches.
+Explaining the other points is more complex. These predominantly consist of open play shots, where numerous other factors come into play. Our model incorporates only five variables: the type of shot (penalty, free kick, open play, etc.), the shot technique (normal, lob, volley, bicycle kick, etc.), the body part used for the shot, and the distance between the player and the goalkeeper. Consequently, we may be overlooking certain information, such as shot angle or whether the player was under pressure. To refine our model and address the idiosyncrasies of this competition, including anomalies like the in-swinging corner, further data from women's football tournaments is required, analyzing more than the current 64 matches.
 
 
 \clearpage
 
 # Another Model : Expected Pass
 
-Having analyzed the Expected Goal (xG) values provided by StatsBomb and developed our own xG prediction model, we questioned whether StatsBomb offered a similar indicator for passes—an Expected Pass (xPass) metric, which predicts the probability of a pass being successful based on various parameters. Surprisingly, they do not have such an indicator. Consequently, we decided to implement one using the same methodology employed for our xG model. We chose to create this model for passes because a football team's performance is strongly correlated with goals, as goals ultimately determine the outcome of matches. However, when observing football matches, it is evident that some teams struggle to create scoring opportunities and goal situations due to their inability to execute passes between the lines, through passes, player combinations, technical skills, or dribbles. We have noted that teams reaching the quarterfinals generally exhibited better xG and True Goal Ratios compared to others, with some exceptions like Colombia. This model allows us to analyze another dimension of the complex sport of football.
+Having scrutinized the Expected Goal (xG) values provided by StatsBomb and formulated our own xG prediction model, we pondered whether StatsBomb offered a comparable metric for passes—an Expected Pass (xP) indicator, forecasting the likelihood of a pass succeeding based on various parameters. To our surprise, such an indicator was not available. Consequently, we undertook the task of implementing one, employing the same methodology utilized for our xG model. We opted to develop this model for passes due to the significant correlation between a football team's performance and goals, which ultimately determine match outcomes. However, upon observing football matches, it becomes apparent that certain teams encounter difficulties in creating scoring opportunities and goal-scoring situations due to challenges in executing passes between lines, through passes, player combinations, technical skills, or dribbles.
 
-For instance, did Colombia excel in the area of play construction compared to their opponents, thereby enabling them to reach the quarterfinals despite having similar xG and True Goal Ratios? Moreover, do we observe the same trend regarding goal-scoring capabilities in the top teams? These questions prompted us to develop this model for analyzing passes.
+We observed that teams advancing to the quarterfinals generally demonstrated superior xG and True Goal Ratios compared to others, albeit with exceptions such as Colombia. This model offers us an avenue to delve into another facet of the intricate sport of football.
+
+For instance, did Colombia excel in play construction compared to their opponents, thereby securing a quarterfinal berth despite similar xG and True Goal Ratios? Furthermore, do we observe a similar trend regarding goal-scoring prowess among top teams? These inquiries motivated the development of this passes analysis model.
 
 ## Quick Descriptive Analysis
 
@@ -1900,7 +1903,7 @@ ggplotly(p6)
 p6
 ```
 
-This graph illustrates the ratio of successful passes to the total number of passes. Once again, a striking difference is observed: players from countries that reached the quarterfinals are positioned at the top of the graph, with a successful pass ratio exceeding 60%, whereas teams eliminated in the round of 16 and group stages exhibit considerably lower pass ratios. It is noteworthy that within these less successful teams, there are still a significant number of players with pass ratios as high as those in the top-performing teams. This suggests potential disparities within these countries, likely indicating a higher level of heterogeneity in player performance.\
+This graph depicts the ratio of successful passes to the total number of passes. Once again, a noticeable disparity is evident: players from countries that advanced to the quarterfinals occupy the uppermost positions on the graph, boasting a successful pass ratio exceeding 60%, whereas teams eliminated in the round of 16 and group stages display notably lower pass ratios. It is worth mentioning that even within these less successful teams, a considerable number of players exhibit pass ratios comparable to those in the top-performing teams. This suggests potential variations within these countries, likely indicating a greater degree of diversity in player performance.\
 
 
 ### Team-by-team visualization
@@ -1991,9 +1994,9 @@ ggplotly(p7)
 p7
 ```
 
-We examined the statistics by country and observed a consistent trend with a notable distinction for Spain, which made significantly more passes than other teams that played a similar number of matches, such as Sweden, Australia, and England, while also achieving a higher pass ratio. Combining this with shooting data, where Spain had many more shots than its competitors, it reaffirms that Spain controlled their matches more effectively, with higher possession and more opportunities. This observation likely extends to England, the other finalist team. For Sweden and Australia, the third and fourth place teams respectively, we can infer that their passes were more risky, potentially involving more line-breaking passes or through balls. Colombia, once again, is positioned among teams that were eliminated earlier and aligns with the average performance level of the competition.
+We analyzed the statistics by country and observed a consistent trend, with a notable distinction for Spain. Spain made significantly more passes than other teams that played a similar number of matches, such as Sweden, Australia, and England, while also achieving a higher pass ratio. When combined with shooting data, where Spain had many more shots than its competitors, this observation reaffirms that Spain controlled their matches more effectively, with higher possession and more opportunities. This trend likely extends to England, the other finalist team. As for Sweden and Australia, the third and fourth-place teams respectively, we can infer that their passes were riskier, potentially involving more line-breaking passes or through balls. Colombia, once again, is positioned among teams that were eliminated earlier and aligns with the average performance level of the competition.
 
-To provide deeper interpretation and validate our analyses with these visualizations, we now focus on the Expected Pass (xPass) indicator, particularly the difficulty of the passes. However, because StatsBomb did not provide a xPass indicator inside the data base, we will not be able to compare our models to the ones used in practice.\
+To provide deeper interpretation and validate our analyses with these visualizations, we will now focus on the Expected Pass (xP) indicator, particularly the difficulty of the passes. However, since StatsBomb did not provide an xP indicator in the data set, we will not be able to compare our models to some better models with a wider training set.\
 
 ## Implementing the Pass model we created
 
@@ -2320,8 +2323,7 @@ ggplotly(p11)
 
 # Conclusion
 
-After acquiring a substantial understanding of football indicators, as well as the way StatsBomb keeps track of football data, we were able to distinguish trends in the winning, as well as the losing teams of the 2023 FIFA Women’s World Cup. We looked at specific teams, such as France or Colombia, and managed to explain some of their success. Using basic logistic regression, and with only a very limited data set, we implemented our own expected goal metric. Through many variable selection steps, we were able to come very close to the xG calculated by StatsBomb. Future research could expand on this analysis by incorporating more diverse datasets, including data from other tournaments and leagues, and use more advanced regression techniques, such as support vector machine or neural networks, to predict more accurately the probability of a goal.
-
+Upon gaining a comprehensive understanding of football indicators and StatsBomb's data tracking methodology, we discerned trends among both the victorious and defeated teams in the 2023 FIFA Women’s World Cup. By focusing on specific teams like Spain, France or Colombia, we elucidated some factors contributing to their success. Leveraging basic logistic regression and utilizing a limited data set, we developed our own expected goal metric. Through successive variable selection steps, we achieved close approximation to the xG calculated by StatsBomb. Future research endeavors could enhance this analysis by incorporating more diverse data sets, encompassing data from other tournaments and leagues. Furthermore, employing advanced regression techniques, such as support vector machines or neural networks, could yield more precise predictions regarding the probability of a goal.
 
 \newpage
 # References
