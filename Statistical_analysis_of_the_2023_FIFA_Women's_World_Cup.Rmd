@@ -452,7 +452,7 @@ create_Pitch <- function(shots = FALSE, opposing=FALSE, grass_colour = "#F9F9F9"
 
 First, we look at how the data is stored in the data set. We do this by plotting the shots of a specific match; we chose Spain-England, which was the final match of the competition.
 
-```{r, echo = F, eval = T, warning=FALSE, fig1 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig1}Visualization of the shots of Spain-England on the pitch",fig.height=4.5}
+```{r, echo = F, eval = T, warning=FALSE, fig1 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig1}Visualization of the shots of Spain-England on the pitch",fig.height=3.5, fig.width = 3.5}
 Visualization_df <- WC2023_dataframe %>% subset(match_id == 3906390) %>% filter(type.name == "Shot")
 
 create_Pitch(shots = TRUE, goaltype = "box") + 
@@ -1615,6 +1615,21 @@ We have many values close to 0, so we use a log transformation to better observe
 The data indicate that only one point is being overestimated by our model. This point corresponds to the goal made from a corner kick mentioned previously. Our model predicts an xG of 1, perfectly illustrating the limits of our model. We only worked on this reduced data set, and since only one corner shot was attempted, our model incorrectly assumes it is the most efficient shot. After transforming the residuals to their logarithmic counterparts, they appear well-adjusted for the most part, with the majority clustering around the desired spot. In the bottom right corner, we find points where our model underestimates the chance of a goal. These seem to be goals taken from far away, and our model consistently underestimates them. This is likely a consequence of our small data set. Overall, our model gets relatively close to the xG of StatsBomb.
 
 
+```{r, echo = F, eval = T, include = F}
+#Testing the model with all df6 variables without interaction
+df_model_6 <- df_model_6 %>% mutate(distance_to_center = case_when(location.y >40 ~ location.y-40,
+                                                                   location.y<=40 ~ -(location.y-40)))
+glm.model_6 <- glm(shot.outcome.name ~ ., data = df_model_6, family = binomial(link = "logit"))
+summary(glm.model_6)
+
+AIC_model6=AIC(glm.model_6)
+
+R2_model6=1-(glm.model_6$deviance/glm.model_6$null.deviance)
+print(R2_model6)
+
+```
+
+
 ## Finding our best model with the AIC criterion
 
 ```{r,echo=F}
@@ -1627,10 +1642,10 @@ df_model_6_best$location.x.GK <- ifelse(is.na(df_model_6_best$location.x.GK), 11
 #view(df_model_6_best)
 ```
 
-The findings suggest that y-positions are useless even for the goalkeeper, as only x-positions are significant.
+This model proves that the distance to the central axis of the pitch is very significant, with a p-value<1e-4. However, findings suggest that y-positions are irrelevant for the goalkeeper, as only x-positions are significant in the above model.
 
-Our best model is composed of 5 variables : 
-The technique of shot, the type of shot, the body part used and the positions in x for the player and the goalkeeper.\
+Our best model is composed of 6 variables : 
+The technique of shot, the type of shot, the body part used, the distance to the center and the positions in x for both the player and the opposing goalkeeper.\
 
 # Analysis of the Model performance
 
@@ -2010,7 +2025,7 @@ Passes_Cleaned <- cleanlocations(Passes_All)
 #View(Passes_Cleaned)
 ```
 
-```{r, eval=T, echo=F, include=FALSE}
+```{r, eval=T, echo=T, include=TRUE}
 # Let's try to predict whether a pass will be completed or not.
 # We will be looking at several different parameters for this model : the length, the angle, and whether a pass is under pressure or not. We also added the seconds, to verify the relevance of the results.
 
@@ -2023,7 +2038,9 @@ dfmod <- dfmod  %>%  mutate(length = pass.length,
                       outcome = case_when(is.na(pass.outcome.name) ~ 1,
                                          !is.na(pass.outcome.name) ~ 0),
                       under_pressure = case_when(is.na(under_pressure) ~ 0,
-                                                !is.na(under_pressure) ~ 1))
+                                                !is.na(under_pressure) ~ 1),
+                      distance_to_center = case_when(location.y >40 ~ location.y-40,
+                                                   location.y<=40 ~ -(location.y-40)))
 
 #Transformer la variable angle
 
@@ -2129,6 +2146,9 @@ print(length(df2p$player)) # 612 players attempted at least 1 pass in the WC
 
 #We now have a df containing every player that shots at least once in the World cup, associated with their xP
 ```
+
+
+
 ### Comparaison xP to True Pass Ratio visualization
 
 #### For hard shots
@@ -2140,6 +2160,7 @@ print(q1)
 df2p_hard <- df2p[df2p$xP_ratio<=q1,] # Keeping only the 25% hardest passes.
 #view(df2p_hard)
 ```
+
 ```{r, eval=T, echo=F}
 #pays = c("France", "England", "Spain", "Switzerland") #Select teams we wish to observe
 pays <- melt(df2p_hard$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #Select all teams
@@ -2327,7 +2348,8 @@ ggplotly(p11)
 
 # Conclusion
 
-Upon gaining a comprehensive understanding of football indicators and StatsBomb's data tracking methodology, we discerned trends among both the victorious and defeated teams in the 2023 FIFA Women’s World Cup. By focusing on specific teams like Spain, France or Colombia, we elucidated some factors contributing to their success. Leveraging basic logistic regression and utilizing a limited data set, we developed our own expected goal metric. Through successive variable selection steps, we achieved close approximation to the xG calculated by StatsBomb. Future research endeavors could enhance this analysis by incorporating more diverse data sets, encompassing data from other tournaments and leagues. Furthermore, employing advanced regression techniques, such as support vector machines or neural networks, could yield more precise predictions regarding the probability of a goal.
+After acquiring a substantial understanding of football indicators, as well as the way StatsBomb keeps track of football data, we were able to distinguish trends in the winning, as well as the losing teams of the 2023 FIFA Women’s World Cup. We looked at specific teams, such as France or Colombia, and managed to explain some of their success. Using basic logistic regression, and with only a very limited data set, we implemented our own expected goal metric. Through AIC criterion step, we were able to come very close to the xG calculated by StatsBomb. This model contained the following observations, from the moment of the shot : the position of the shooter as well as the opposing goalkeeper, its distance relative to the central axis of the pitch, the type, body part and technique of the shot.
+Future research could expand on this analysis by incorporating more diverse datasets, including data from other tournaments and leagues, and use more advanced regression techniques. Such techniques could include support vector machine or neural networks, to predict more accurately the probability of a goal.
 
 \newpage
 # References
