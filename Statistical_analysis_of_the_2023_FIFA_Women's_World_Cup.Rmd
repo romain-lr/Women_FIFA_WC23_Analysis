@@ -1,0 +1,2347 @@
+---
+#title: "Statistical analysis of the 2023 FIFA Women's World Cup"
+institute: INSA Toulouse
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    toc: false
+    toc_depth: 3
+    number_section: true
+    fig_caption: true
+  word_document:
+    toc: true
+    toc_depth: '3'
+always_allow_html: true
+header-includes:
+- \usepackage{dsfont}
+- \usepackage{color}
+- \newcommand{\1}{\mathds{1}}
+---
+
+\begin{titlepage}
+\centering
+\vspace*{1cm}
+
+{\Huge \bfseries Statistical analysis of the 2023 FIFA Women's World Cup \par}
+
+\vspace{1.5cm}
+
+{\Large INSA Toulouse\par}
+
+\vspace{2cm}
+
+{\large Date : May, 21st 2024\par}
+
+\vspace{2cm}
+
+{\Large Authors :\\
+Canouet Eugénie\\
+Laurié Romain\\
+Richaume Julien\par}
+
+{\Large Tutors :\\
+Dejean Sébastien\\
+Saint Pierre Phillipe\par}
+
+\vfill
+
+```{r, echo = F, eval = TRUE, out.width = '450px', out.height = '200px', fig.align='center'}
+knitr::include_graphics('./Image_pied_de_page.PNG')
+```
+
+\end{titlepage}
+
+\newpage
+
+\tableofcontents
+
+\newpage
+
+```{r, include=FALSE}
+#Eval=False : on compile pas le chunk
+#Include=False : on affiche rien
+#Echo=False : on affiche que la sortie
+```
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(cowplot)
+library(patchwork)
+library(tidyverse)
+library(StatsBombR)
+library(extrafont)
+library(MASS)
+library(dplyr)
+library(plotly)
+library(stringr)
+library(ggplot2)
+library(writexl)
+library(readxl)
+library(gridExtra)
+library(matrixStats)
+library(ggplot2)
+library(reshape2)
+library(viridis)
+```
+
+\newpage
+
+# Abstract 
+
+ 
+Football is a multi-billion dollar industry, but many questions remain about the intricate predictors of a given team’s success. Many have explored the impact of possession such as Collet who studied the impact of possession in 2013. We examined the success of national teams that took part in the 2023 FIFA Women’s World Cup, using public data available on StatsBomb. Firstly, we used descriptive statistics to understand the ways teams sustain advantages on other teams.
+We examined passing, shooting, and advanced metrics such as expected goals (xG) and expected passes (xP). We tried to distinguish tendencies and differences in styles of play between teams, and individual players. We managed to develop our own xG model, therefore finding the most relevant criteria to predict goals, in order to compare it to StatsBomb's model, and build visualizations based on it. We also plotted player’s and team’s pass completion rate, as well as their goal to shot ratio. Using our model, we managed to explain the success of designated teams, and the failures of others.
+
+
+# Introduction
+
+  In today's world, sports are at the center of global culture. In order to excel at the best level, players and teams must find solutions, both physical and tactical. Therefore, statistics will play a crucial role in optimizing performance. Previous studies have shed light on various aspects of football analytics. Collet studied the impact of possession in 2013. More recently Liu analyzed the environmental impact in 2021. However, the realm of football remains relatively unexplored in terms of data analysis. Understanding the dynamics of offensive and defensive play is pivotal for teams aiming to excel in competitions. 
+
+The research gap lies in the need for a comprehensive analysis of football performance using advanced statistical methods, with a focus on data from platforms like StatsBomb. The impact of certain specific aspects of football analytics, such as shot analysis or passing patterns remains unclear, and a comprehensive understanding of player and team performance is still lacking.
+
+We aimed to address this gap by conducting a detailed analysis of football performance using StatsBomb data. We seeked to identify key performance indicators, assess their impact on match outcomes, and uncover underlying trends and patterns in player and team performance. This report outlines the methodology used for data collection and analysis, presents the findings from the study, and discusses their implications for the future of football analytics.
+
+This report is divided into three parts. In the first section, we conduct an exploratory data analysis to identify certain trends, notably by analyzing shots and goals for each team. Then we seek an optimal statistical model to determine which parameters have the greatest impact on player performance. The last section contains the results of our analysis, including insights into player and team performance derived from StatsBomb data, with graphs examining successful shots and passes. 
+
+\clearpage  
+  
+```{r, include=FALSE}
+# World Cup 2023 (id 72)
+WC2023 <- FreeCompetitions() %>%
+filter(competition_id==72 & season_name=="2023")
+
+# Games availables in WC2023
+Matches <- FreeMatches(WC2023)
+```
+
+
+
+```{r, include=FALSE}
+AllMatches <- FreeMatches(WC2023)
+
+AllMatches <- AllMatches  %>%  mutate(away_team.away_team_name = gsub(" Women's","",away_team.away_team_name),
+                                      home_team.home_team_name = gsub(" Women's","",home_team.home_team_name),
+                                      .keep="unused")
+
+
+AllMatches <- AllMatches  %>%  mutate(away_team.away_team_name = gsub(" ","",away_team.away_team_name),
+                                      home_team.home_team_name = gsub(" ","",home_team.home_team_name),
+                                      .keep="unused")
+
+Events <- free_allevents(AllMatches)
+Shots_All <- Events %>% filter(type.name=="Shot")
+
+Shots_All <- Shots_All  %>%  mutate(team = gsub(" ","",team.name),
+                                      .keep="unused")
+#view(Shots_All)
+```
+
+```{r, include=FALSE}
+Shots <- subset(Shots_All, select = c(shot.outcome.name,team, player.name))
+
+Shots <- Shots  %>%  mutate(player = player.name,
+                                      outcome = case_when(shot.outcome.name!="Goal" ~ 0,
+                                                         shot.outcome.name=="Goal" ~ 1),
+                                      team = gsub("Women's","",team),
+                                      .keep="unused")
+
+```
+
+
+```{r, include=FALSE,eval=T}
+
+# Events for the games of the WC2023
+WC2023_dataframe <- free_allevents(MatchesDF = Matches, Parallel = T)
+WC2023_dataframe = allclean(WC2023_dataframe)
+
+```
+
+
+```{r, include=F, eval=F}
+
+# Lire le fichier CSV dans R
+#write.csv(WC2023_dataframe, "WC2023_dataframe.csv", row.names = FALSE)
+
+WC2023_dataframe <- read.csv("WC2023_dataframe.csv")
+
+```
+
+
+
+```{r,, include=FALSE}
+WC2023_dataframe <- WC2023_dataframe %>%
+  mutate(team.name = str_remove(team.name, " Women's"))
+
+WC2023_dataframe <- WC2023_dataframe %>%
+  mutate(possession_team.name = str_remove(possession_team.name, " Women's"))
+```
+
+
+```{r, include=FALSE}
+#For descriptive analysis and visualization we need to have some clearer way to colored datas, so we create groups depending on which stage of the competitions teams have lost
+Semifinals <- AllMatches %>% filter(competition_stage.name=="Semi-finals")
+pays_semifinals <- subset(Semifinals, select = c(home_team.home_team_name,away_team.away_team_name))
+pays_semifinals <- melt(pays_semifinals) %>% distinct() %>% as.list() %>% unlist() %>% sort() #select all teams
+pays_semifinals_list <- melt(pays_semifinals) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #select all teams
+#view(pays_semifinals)
+
+Quarterfinals <- AllMatches %>% filter(competition_stage.name=="Quarter-finals")
+pays_quarterfinals <- subset(Quarterfinals, select = c(home_team.home_team_name,away_team.away_team_name))
+pays_quarterfinals <- melt(pays_quarterfinals) %>% distinct() %>% as.list() %>% unlist() %>% sort() #select all teams
+pays_quarterfinals <- setdiff(pays_quarterfinals, pays_semifinals)
+pays_quarterfinals_list <- melt(pays_quarterfinals) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #select all teams
+#view(pays_quarterfinals)
+
+Round_of_16 <- AllMatches %>% filter(competition_stage.name=="Round of 16")
+pays_r16 <- subset(Round_of_16, select = c(home_team.home_team_name,away_team.away_team_name))
+pays_r16 <- melt(pays_r16) %>% distinct() %>% as.list() %>% unlist() %>% sort() #select all teams
+pays_r16 <- setdiff(pays_r16, union(pays_quarterfinals, pays_semifinals))
+pays_r16_list <- melt(pays_r16) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #select all teams
+#view(pays_r16)
+
+Group_Stage <- AllMatches %>% filter(competition_stage.name=="Group Stage")
+pays_gs <- subset(Group_Stage, select = c(home_team.home_team_name,away_team.away_team_name))
+pays_gs <- melt(pays_gs) %>% distinct() %>% as.list() %>% unlist() %>% sort() #select all teams
+pays_r8 <- union(pays_quarterfinals, pays_semifinals)
+pays_gs <- setdiff(pays_gs, union(pays_r16, pays_r8))
+pays_gs_list <- melt(pays_gs) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #select all teams
+#view(pays_gs)
+
+# Créer un data frame pour l'échelle de couleur
+color_scale_data_GS <- data.frame(team = pays_gs, group = "8-GS")
+color_scale_data_R16 <- data.frame(team = pays_r16, group = "7-R16")
+color_scale_data_Quarter <- data.frame(team = pays_quarterfinals, group = "6-Quarterfinals")
+color_scale_data_Semi <- data.frame(team = pays_semifinals, group = "5-Semifinals")
+color_scale_data_4 <- data.frame(team = "Australia", group = "4th")
+color_scale_data_3 <- data.frame(team = "Sweden", group = "3rd")
+color_scale_data_2 <- data.frame(team = "England", group = "2nd")
+color_scale_data_1 <- data.frame(team = "Spain", group = "1st")
+color_scale_data <- bind_rows(color_scale_data_GS, 
+                              color_scale_data_R16, 
+                              color_scale_data_Quarter, 
+                              color_scale_data_Semi)
+color_scale_2 <- bind_rows(color_scale_data_GS, 
+                              color_scale_data_R16, 
+                              color_scale_data_Quarter, 
+                              color_scale_data_4, color_scale_data_3, color_scale_data_2, color_scale_data_1)
+
+#view(color_scale_data)
+```
+
+# Descriptive data analysis 
+
+The package StatsBombR provides the data from 71 national and international competitions from over 3000 matches. For the sake of this project, we narrow our scope down to the most recent competition available : The FIFA Women's World Cup 2023 and its 64 matches. We begin by interpreting the different variables of this large data set.\
+
+The full data set contains 183 variables for analysis, with the majority having a significant proportion of missing values, as they were used to track very specific patterns of play. As an example, the parameter "goalkeeper.shot_saved_to_post" is attributed "True" only if the goalkeeper saved a shot from going inside the goal, by deflecting it onto a post.\
+
+
+```{r, include=FALSE}
+create_Pitch <- function(shots = FALSE, opposing=FALSE, grass_colour = "#F9F9F9", line_colour = "#8F8F8F", background_colour = "#F9F9F9", goal_colour = "#000000", goaltype = "line", middlethird = FALSE, BasicFeatures = FALSE, JdeP = FALSE, arcs = TRUE, padding = 5, Heatmap = FALSE, df_heatmap){
+
+  library(ggplot2)
+  ## set theme for blank pitch
+  theme_blankPitch = function(size=12) {
+    theme(
+      #axis.line=element_blank(),
+      axis.text.x=element_blank(),
+      axis.text.y=element_blank(),
+      #axis.ticks.y=element_text(size=size),
+      #   axis.ticks=element_blank(),
+      axis.ticks.length=unit(0, "lines"),
+      #axis.ticks.margin=unit(0, "lines"),
+      axis.title.x=element_blank(),
+      axis.title.y=element_blank(),
+      legend.background=element_rect(fill=background_colour, colour=NA),
+      legend.key=element_rect(colour=background_colour,fill=background_colour),
+      legend.key.size=unit(1.2, "lines"),
+      legend.text=element_text(size=size),
+      legend.title=element_text(size=size, face="bold",hjust=0),
+      strip.background = element_rect(colour = background_colour, fill = background_colour, linewidth = .5),
+      panel.background=element_rect(fill=background_colour,colour=background_colour),
+      #       panel.border=element_blank(),
+      panel.grid.major=element_blank(),
+      panel.grid.minor=element_blank(),
+      panel.spacing=element_blank(),
+      plot.background=element_blank(),
+      plot.margin=unit(c(0, 0, 0, 0), "lines"),
+      plot.title=element_text(size=size*1.2),
+      strip.text.y=element_text(colour=background_colour,size=size,angle=270),
+      strip.text.x=element_text(size=size*1))}
+
+  ymin <- 0 # minimum width
+  ymax <- 80 # maximum width
+  xmin2 <- 0
+  if (opposing==TRUE){
+    xmin <- 60 # minimum length
+  }else {}
+  if (shots == TRUE){
+    ymin <- 10
+    ymax <- 70
+    xmin <- 80
+  }
+  else{
+    xmin <-0
+  }
+  xmax <- 120 # maximum length
+
+  # Defining features along the length
+  boxEdgeDef <- 18
+  boxEdgeOff <- 102
+  halfwayline <- 60
+  sixYardDef <- 6
+  sixYardOff <- 114
+  penSpotDef <- 12
+  penSpotOff <- 108
+
+  # Defining features along the width
+  boxEdgeLeft <- 18
+  boxEdgeRight <- 62
+  sixYardLeft <- 30
+  sixYardRight <- 50
+  goalPostLeft <- 36
+  goalPostRight <- 44
+  CentreSpot <- 40
+
+  # other dimensions
+  centreCirle_r <- 9
+
+  ## define the circle function
+  circleFun <- function(center = c(0,0),diameter = 1, npoints = 100){
+    r = diameter / 2
+    tt <- seq(0,2*pi,length.out = npoints)
+    xx <- center[1] + r * cos(tt)
+    yy <- center[2] + r * sin(tt)
+    return(data.frame(x = xx, y = yy))
+  }
+
+  #### create center circle ####
+  #center_circle <- circleFun(c(halfwayline,CentreSpot),centreCirle_d,npoints = 100)
+
+  ### FIRST STAGE
+  ## initiate the plot, set some boundries to the plot
+  if (Heatmap == TRUE){
+    p <- ggplot(df_heatmap, aes(x = x, y = y, fill = xg)) + 
+      xlim(c(xmin-padding,xmax+padding)) + ylim(c(ymin,ymax)) +   
+      theme_blankPitch() + 
+      geom_tile() + 
+      scale_fill_viridis(option = "A")
+  }else{
+    p <- ggplot() + xlim(c(xmin-padding,xmax+padding)) + ylim(c(ymin-padding,ymax+padding)) + theme_blankPitch()
+  }# add the theme
+
+  ### ADD MIDDLE THIRD SHADING
+  if(middlethird == TRUE){
+  p <- p + geom_rect(aes(xmin=(xmax/3*1), xmax=(xmax/3*2), ymin=ymin, ymax=ymax), colour = NA, fill = "black", alpha = 0.10)
+  }else{}
+
+  if(BasicFeatures == TRUE){
+  p <- p +
+  # add the base rectangle of the pitch
+  geom_rect(aes(xmin=xmin2, xmax=xmax, ymin=ymin, ymax=ymax), fill = NA, colour = line_colour) +
+  # add the 18 yard box defensive
+  geom_rect(aes(xmin=xmin2, xmax=boxEdgeDef, ymin=boxEdgeLeft, ymax=boxEdgeRight), fill = grass_colour, colour = line_colour) +
+  # add the 18 yard box offensive
+  geom_rect(aes(xmin=boxEdgeOff, xmax=xmax, ymin=boxEdgeLeft, ymax=boxEdgeRight), fill = grass_colour, colour = line_colour) +
+  # add halfway line
+  geom_segment(aes(x = halfwayline, y = ymin, xend = halfwayline, yend = ymax),colour = line_colour)
+  arcs = FALSE
+  }else{
+        ## initiate the plot, set some boundries to the plot
+  p <- p +
+  # add the base rectangle of the pitch
+  geom_rect(aes(xmin=xmin2, xmax=xmax, ymin=ymin, ymax=ymax), fill = NA, colour = line_colour) +
+  # add the 18 yard box defensive
+  geom_rect(aes(xmin=xmin2, xmax=boxEdgeDef, ymin=boxEdgeLeft, ymax=boxEdgeRight), fill = grass_colour, colour = line_colour) +
+  # add the 18 yard box offensive
+  geom_rect(aes(xmin=boxEdgeOff, xmax=xmax, ymin=boxEdgeLeft, ymax=boxEdgeRight), fill = grass_colour, colour = line_colour) +
+  # add halway line
+  geom_segment(aes(x = halfwayline, y = ymin, xend = halfwayline, yend = ymax),colour = line_colour) +
+  # add the six yard box Defensive
+  geom_rect(aes(xmin=xmin2, xmax=sixYardDef, ymin=sixYardLeft, ymax=sixYardRight), fill = grass_colour, colour = line_colour)  +
+  # add the six yard box offensive
+  geom_rect(aes(xmin=sixYardOff, xmax=xmax, ymin=sixYardLeft, ymax=sixYardRight), fill = grass_colour, colour = line_colour) +
+    # add penalty spot left
+  geom_point(aes(x = penSpotDef , y = CentreSpot), colour = line_colour, size = 0.75) +
+  # add penalty spot right
+  geom_point(aes(x = penSpotOff , y = CentreSpot), colour = line_colour, size = 0.75) +
+  # add centre spot
+  geom_point(aes(x = halfwayline , y = CentreSpot), colour = line_colour, size = 0.75) }
+  
+  #### add goals depending on type
+
+  ## LINE TYPE
+  if(goaltype == "line"){
+  p <- p +
+  # add the goal Defensive
+  geom_segment(aes(x = xmin2, y = goalPostLeft, xend = xmin2, yend = goalPostRight),colour = goal_colour, size = 1) +
+  # add the goal offensive
+  geom_segment(aes(x = xmax, y = goalPostLeft, xend = xmax, yend = goalPostRight),colour = goal_colour, size = 1)
+
+  }else{}
+
+  ## Barca Numbers TYPE
+  if(goaltype == "barcanumbers"){
+  p <- p +
+  # add the goal Defensive
+  geom_segment(aes(x = xmin2 - 0.75, y = goalPostLeft, xend = xmin2 - 0.75, yend = goalPostRight),colour = line_colour, size = 0.75) +
+  # add the goal offensive
+  geom_segment(aes(x = xmax + 0.75, y = goalPostLeft, xend = xmax + 0.75, yend = goalPostRight),colour = line_colour, size = 0.75)
+
+  }else{}
+
+  ## BOX TYPE
+  if(goaltype == "box"){
+  p <- p +
+  # add the goal Defensive
+  geom_rect(aes(xmin = xmin2 - 2 , ymin = goalPostLeft, xmax = xmin2, ymax = goalPostRight), fill = grass_colour, colour = line_colour) +
+  # add the goal offensive
+  geom_rect(aes(xmin = xmax, ymin = goalPostLeft, xmax = xmax + 2, ymax = goalPostRight), fill = grass_colour, colour = line_colour)
+  }else{}
+
+
+  ## add J de P
+  if(JdeP == TRUE){
+  p <- p +
+  # vertical tram lines
+  geom_segment(aes(x = boxEdgeDef, y = boxEdgeLeft, xend = boxEdgeOff, yend = boxEdgeLeft), colour = "#941C07", alpha = 0.3) +
+  geom_segment(aes(x = boxEdgeDef, y = boxEdgeRight, xend = boxEdgeOff, yend = boxEdgeRight), colour = "#941C07", alpha = 0.3) +
+  geom_segment(aes(x = boxEdgeDef, y = CentreSpot - 10, xend = boxEdgeOff, yend = CentreSpot - 10), colour = "#941C07", alpha = 0.3) +
+  geom_segment(aes(x = boxEdgeDef, y = CentreSpot + 10, xend = boxEdgeOff, yend = CentreSpot + 10), colour = "#941C07", alpha = 0.3) +
+  # horizontal tram lines
+  geom_segment(aes(x = boxEdgeDef, y = ymin, xend = boxEdgeDef, yend = ymax), colour = "#941C07", alpha = 0.3) +
+  geom_segment(aes(x = boxEdgeOff, y = ymin, xend = boxEdgeOff, yend = ymax), colour = "#941C07", alpha = 0.3) +
+  geom_segment(aes(x = (xmax/3*1), y = boxEdgeRight, xend = (xmax/3*1), yend = ymax), colour = "#941C07", alpha = 0.3) +
+  geom_segment(aes(x = (xmax/3*1), y = boxEdgeLeft, xend = (xmax/3*1), yend = ymin), colour = "#941C07", alpha = 0.3) +
+  geom_segment(aes(x = (xmax/3*2), y = boxEdgeRight, xend = (xmax/3*2), yend = ymax), colour = "#941C07", alpha = 0.3) +
+  geom_segment(aes(x = (xmax/3*2), y = boxEdgeLeft, xend = (xmax/3*2), yend = ymin), colour = "#941C07", alpha = 0.3)
+  # add the 18 yard box defensive
+  #geom_rect(aes(xmin=xmin, xmax=boxEdgeDef, ymin=boxEdgeLeft, ymax=boxEdgeRight), fill = NA, colour = line_colour) +
+  # add the 18 yard box offensive
+  #geom_rect(aes(xmin=boxEdgeOff, xmax=xmax, ymin=boxEdgeLeft, ymax=boxEdgeRight), fill = NA, colour = line_colour)
+  }else{}
+
+  ## add J de P
+  if(arcs == TRUE){
+  p <- p +
+  # vertical tram lines
+  annotate("path",
+           x = 12 + 10 * cos(seq(-0.3*pi, 0.3*pi, length.out = 30)),
+           y = 40 + 10 * sin(seq(-0.3*pi, 0.3*pi, length.out = 30)),
+           col = line_colour) +
+  annotate("path",
+           x = (120-12) - 10 * cos(seq(-0.3*pi, 0.3*pi, length.out = 30)),
+           y = 40 + 10 * sin(seq(-0.3*pi, 0.3*pi, length.out = 30)),
+           col = line_colour)
+  }else{}
+
+  p <- p + annotate("path",
+                    x = 60 + centreCirle_r*cos(seq(0, 2*pi,length.out=100)),
+                    y = 40 + centreCirle_r*sin(seq(0, 2*pi,length.out=100)),
+                    col = line_colour)
+  
+  return(p)
+
+}
+
+# This function will be useful to create a pitch background for plotting.
+```
+
+## Analysis of successful shots according to country
+
+First, we look at how the data is stored in the data set. We do this by plotting the shots of a specific match; we chose Spain-England, which was the final match of the competition.
+
+```{r, echo = F, eval = T, warning=FALSE, fig1 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig1}Visualization of the shots of Spain-England on the pitch",fig.height=4.5}
+Visualization_df <- WC2023_dataframe %>% subset(match_id == 3906390) %>% filter(type.name == "Shot")
+
+create_Pitch(shots = TRUE, goaltype = "box") + 
+  geom_point(data = Visualization_df, aes(x=location.x, y=location.y)) + 
+  geom_segment(data = Visualization_df, aes(x = location.x, y = location.y, xend = shot.end_location.x, yend = shot.end_location.y, color = player.name), show.legend = F)
+
+#view(Visualization_df)
+```
+
+This graph shows that regardless of which team scores, the locations of the players are always tracked the same way : for a given team, the home goal is located at x = 0, which corresponds to the left of this graph, and the opposing goal is located at x = 120. This will allow us to directly use the provided variables, without further formatting the data.
+
+Then, we took a look at the number of goals and shots in all matches for each team.\
+Figure \ref{fig:fig1} shows a visualization of these results.\
+
+```{r, include=FALSE}
+#Number of goals and shots in all games for each team
+shots_goals = WC2023_dataframe %>%
+group_by(team.name) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+```
+
+From the above figure, we can already see a big disparity in team success. Some teams, like Vietnam and Haiti, didn't even manage to score a goal over the course of the competition, while Sweden and France were more successful in this aspect. However, simply displaying how much shots and goals a team made provides an incomplete understanding of team effectiveness, and is generally a flawed metric for comparison, as teams that made it further into the competition naturally scored more goals, and had more shots. 
+
+```{r fig1 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig1}Diagram of the number of goals and shots in all matches for each team",fig.height=4.5}
+#Let's make a graph
+ggplot(shots_goals, aes(y = reorder(as.factor(team.name), goals))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Number of goals and shots in all games for each team",
+       y = "Team",
+       x = "Number") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green"))
+```
+
+Therefore, we calculated the percentage of shots leading to a goal for every team, and compared them in Figure \ref{fig:fig2}.
+
+From this graph, we are able to identify that Sweden was the most efficient team in scoring by a substantial margin. This is of course very biased, as Sweden finished third in the tournament, only losing one match throughout the entirety of the competition. Keeping that in mind, it is surprising that Spain scores this low on the graph, considering they won the World Cup. It could be that Spain, despite their evident success, was not a very efficient team, or that they had a different playing style than other teams.
+
+```{r fig2 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig2}Diagram of the percentage of shots leading to a goal",fig.height=4,fig.align='center'}
+
+ggplot(shots_goals, aes(y = reorder(as.factor(team.name), goals/shots*100))) +
+  geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Percentage of shots leading to a goal",
+       y = "Team",
+       x = "Percentage")
+```
+
+\vspace{3pt}
+
+Next, we realized the above analyses for singular matches. We chose the four matches played by team France, and created the same graphs for each of their matches.
+
+Figure \ref{fig:fig3} shows that there were a huge number of goals in two games : Panama-France and Australia-France. The final score of the first match was 3-6 for France, while the latter ended on a draw. However, teams went to penalties, and they scored a total of 13, making this observation flawed.
+
+```{r,include=F}
+shots_goals_all_matches = WC2023_dataframe %>%
+  group_by(match_id) %>%
+  reframe(team_name = unique(team.name),
+            shots = sum(type.name=="Shot", na.rm = TRUE),
+            goals = sum(shot.outcome.name=="Goal", na.rm = TRUE))
+
+#Number of goals and shots in each match for both teams
+#shots_goals_all_matches = WC2023_dataframe %>%
+#group_by(match_id) %>% 
+#summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+#goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+
+```
+
+```{r,include=F}
+#We display ids of all France matches
+Id_France = WC2023_dataframe%>% filter(team.name=="France")
+match_ids_france=unique(Id_France$match_id)
+print(match_ids_france)
+```
+
+
+```{r,include=F}
+#For each French match, the total number of shots and goals for the 2 teams (France+adversary) is displayed.
+
+france_goals <- shots_goals_all_matches %>%
+  filter(match_id %in% match_ids_france) %>%
+  subset(team_name!="France")
+
+print(france_goals)
+```
+
+
+```{r,include=F}
+ggplot(france_goals, aes(y = team_name)) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Number of shots and goals for each French match",
+       y = "France's opposing team",
+       x = "Number") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green"))
+  
+```
+
+
+```{r,include=F}
+ggplot(france_goals, aes(y = reorder(as.factor(match_id), goals/shots*100))) +
+  geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Percentage of shots on goal in France matches",
+       y = "Match",
+       x = "Percentage")
+
+#Il faut ordonner par date pour avoir l'évolution de la stratégie au cours de la compétition
+
+
+```
+
+```{r,include=F}
+
+#We want to know which goals come from France
+shots_goals_France_all_matches = WC2023_dataframe %>%
+filter(team.name=="France") %>%
+group_by(match_id) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+
+print (shots_goals_France_all_matches)
+
+```
+
+
+
+```{r fig3 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig3}Diagram of the number of shots and goals for each French and percentage",fig.height=2,fig.align='center'}
+
+g1=ggplot(shots_goals_France_all_matches, aes(y = as.factor(match_id))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Numbers for France's matches",
+       y = "Match_id",
+       x = "Number") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green")) 
+
+
+g2=ggplot(shots_goals_France_all_matches, aes(y = as.factor(match_id))) +
+  geom_bar(aes(x = goals/shots*100), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Percentage in France's matches",
+       y = "Match",
+       x = "Percentage") 
+
+#Order from bottom to top: 1st match to last
+grid.arrange(g1,g2,ncol=2)
+```
+
+## Analysis of successful shots according to different variables  
+
+We first look at the different types of shots in Figure \ref{fig:fig3}. Four different types of shots were differentiated in the data set : "Open Play", "Penalty", "Free Kick" as well as "Corner." A shot was deemed as being "Open Play" if it was taken during regular actions of the game. The "Corner" label only applies to a single shot made by Ireland's Katie McCabe that went in. This is something to keep in mind, as it is sure to skew our future models. Other labels are self-explanatory.\
+
+```{r,include=F}
+#Number of goals and shots in all matches by type of shot
+shots_goals_formation = WC2023_dataframe %>%
+group_by(shot.type.name) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+
+shots_goals_formation=shots_goals_formation[-c(5),]
+```
+
+
+```{r fig4 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig4}Diagram of the number of shots and goals for each type of shot",fig.height=2,fig.align='center'}
+ggplot(shots_goals_formation, aes(y = reorder(as.factor(shot.type.name), goals))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Number of shots and goals for each type of shot",
+       y = "type",
+       x = "Number") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green"))
+```
+
+
+Next, we look at the different techniques used by players : how much are being kept a track of in the data set, how much were each of them used, and which one produced the most goals.\
+
+Figure \ref{fig:fig4} shows that the data set contains seven types of shots, although only three are consistently being used, that is : "Normal", "Half Volley" and "Volley". Naturally, the "Normal" shot was the most popular, and hence yielded the mos t goals. A "Lob" was very infrequently done, but could prove effective in the right situation : it seems a good proportion of these shots went in.
+
+```{r,include=F}
+#Number of shots and goals for each technique of shot
+shots_goals_technique = WC2023_dataframe %>%
+group_by(shot.technique.name) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+
+#On enlève la ligne NA
+
+shots_goals_technique=shots_goals_technique[-c(8),]
+```
+
+
+```{r fig5 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig5}Diagram of the number of shots and goals for each type of shot",fig.height=2,fig.pos="h",fig.align='center'}
+
+ggplot(shots_goals_technique, aes(y = reorder(as.factor(shot.technique.name), goals))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Number of shots and goals for each technique of shot",
+       y = "Technique of shot",
+       x = "Number") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green"))
+```
+
+Similarly, we visualize in Figure \ref{fig:fig5} the different body parts used in shooting.
+
+Unsurprisingly, the right foot was most commonly used, and it seems every body part was equally as effective in scoring, apart from the "Other" body zone.
+
+```{r,include=F}
+#Number of goals and shots over all matches according to body zone used
+shots_goals_part = WC2023_dataframe %>%
+group_by(shot.body_part.name) %>% 
+summarise(shots = sum(type.name=="Shot", na.rm = TRUE),
+goals = sum(shot.outcome.name=="Goal", na.rm = TRUE)) 
+shots_goals_part=shots_goals_part[-c(5),]
+
+```
+
+```{r fig6 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig6}Diagram of the number of goals and shots according to body zone used",fig.height=2,fig.pos="h"}
+
+ggplot(shots_goals_part, aes(y = reorder(as.factor(shot.body_part.name), goals))) +
+  geom_bar(aes(x = shots, fill = "shots"), stat = "identity", position = "dodge", width = 0.8) +
+  geom_bar(aes(x = goals, fill = "goals"), stat = "identity", position = "dodge", width = 0.8) +
+  labs(title = "Number of goals and shots according to body zone used",
+       y = "Body zone",
+       x = "Number") +
+  scale_fill_manual(values = c("shots" = "brown", "goals" = "green")) 
+```
+
+
+## Analysis of teams and players scoring ratio
+
+In this part we want to describe the number of goals scored by players and teams by using the goal ratio, so the number of goals scored on the number of total shots during the events.\
+
+### Players scoring ratio
+
+Firstly, we look at player scoring ratio, which is calculated by dividing the total amount of goals a player scored, by the number of shots they took throughout the competition. This may lead us to the conclusion that efficiency varies highly from one player to another.
+
+Figure \ref{fig:fig7} shows a visualization of the goal ratio of players that performed at least 1 shot during the World Cup.\
+
+
+```{r,include=F}
+df_shots_total <- aggregate(x = Shots$outcome, by = list(Shots$player), FUN = length)
+df_shots_succeed <- aggregate(x = Shots$outcome, by = list(Shots$player), FUN = sum)
+
+df <- merge(df_shots_succeed, df_shots_total, by=c("Group.1")) %>% mutate(player = Group.1,
+                                                                               completed_shots = x.x,
+                                                                               total_shots = x.y,
+                                                                               .keep="unused")
+
+df1 <- subset(Shots, selec = c(player, team))
+#view(df1)
+
+df <- merge(df1, df, by=c("player"))
+#view(df)
+df <- df %>% distinct()
+
+df <- df %>% mutate(shots_completion_ratio = completed_shots/total_shots,
+                    total_shots = total_shots,
+                    total_goals = completed_shots,
+                    .keep = "unused")
+
+print(length(df$player))
+#view(df)
+
+df <- df[df$total_shots>=1,] # Removing players that attempted less than 2 shots
+
+print(length(df$player)) # 398 players attempted at least 1 shots in the WC
+
+#We now have a df containing every player that shot at least once in the World cup, associated with how many shots they attempted, and their ratio of successful shots
+
+#pays = c("France", "England", "Spain", "Switzerland") #Select teams we wish to observe
+pays <- melt(df$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #Select all teams
+
+df_player <- df[df$team %in% pays,]
+
+df$groupv2 <- ifelse(df$team %in% pays_gs, "8-GS",
+                              ifelse(df$team %in% pays_r16, "7-R16",
+                                     ifelse(df$team %in% pays_quarterfinals, "6-Quarterfinals",
+                                            ifelse(df$team == "Australia", "4th",
+                                                   ifelse(df$team == "Sweden", "3rd",
+                                                          ifelse(df$team == "England", "2nd",
+                                                                 ifelse(df$team=="Spain","1st","NA")))))))
+
+mean_shots_completion_ratio = mean(df$shots_completion_ratio)
+mean_shots_nb = mean(df$total_shots)
+mean_goals_nb = mean(df$total_goals)
+
+
+df[nrow(df) + 1,] <- list("Mean Player", "Mean Player", mean_shots_nb, mean_shots_completion_ratio, mean_goals_nb, "Mean Player")
+#view(df)
+```
+
+
+```{r fig7 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig7}Goal ratio on the number of totals shots for players",fig.height=4.5,fig.align='center'}
+p <- ggplot(df, aes(total_shots, shots_completion_ratio, label = paste("player =", player, ", team =", team ), color = groupv2)) + geom_point() +  scale_color_viridis(discrete=TRUE) + geom_point(data = df[df$player == "Mean Player", ], aes(total_shots, shots_completion_ratio), shape = 4, color = "red4", size = 2) + labs(x = "Total Number of Shots", y = "True Goal's Ratio", fill = "World Cup's Stages", color = "World Cup's Stages")
+
+# Display “Mean Player” with a red cross
+#p <- p + geom_point(data = df[df$player == "Mean Player", ], aes(total_shots, shots_completion_ratio), shape = 4, color = "red4", size = 2)
+
+ggplotly(p)
+p
+```
+
+Some information on this graph: the color of the dots represented, as indicated in the legend, at what stage of the competition the player's team finished, so the more the dots tend towards purple, the more matches the players played and therefore went further in the competition.
+The graph shows a clear trend: the more shots players take, the lower their ratio. Even so, the players on the best teams -that is, those who finished in the top positions - often have a higher ratio than those on teams who lost earlier in the tournament.
+We also notice that the average (represented by a red cross) is quite low compared to the points we see on the graph, intuitively we'd probably have placed it around 10 shots and 0.25 goal ratio. But then we realized that many points, especially those at the bottom of the graph with 0 goals scored, are superimposed, so there are many players who shot without scoring, which is fairly consistent with the match statistics of around ten shots per team for an average of between 1 to 4 goals per match.
+An important piece of information is missing on this graph. Results show that the more players attempted shots, the worse their ratio of successful shots, but we don't take into account the difficulty of the shots perfomed by the players. Indeed a penalty is intuitively easier to score than an open shot far from the goals and under the pressure of defenders. It's something we already saw in the Figure \ref{fig:fig4}, that goals on penalty occurred more often even though that there are less frequent in games.
+
+So, we ask ourselves base on which criteria we could try to implement the notion of shot's difficulty, and we find that the notion of Expected Goals is what we were looking for and that the StatsBomb dataset provide it with every shots attempt.
+
+The "Expected Goal", often named "xG" is the probability to score given a lot of datas on the shot, for example it can be the shooter and the goal position, the fact that the striker is under pressure or not, with which foot he is attempting this shot and various differents variables. This probability is computed by the xG model of StatsBomb which is probably created on a large amount of data that they were able to collect.
+
+So this notion of xG is well-suited to implement the notion of shots difficulty. We can compute the mean of the xG of every shots that one player attempted to see if the player had easy or hard shots to perform.
+
+This his what the Figure \ref{fig:fig8} is showing true goal ratio on the StatsBomb xG ratio for every player which attempted at least 1 shots during the World Cup.\
+
+```{r,include=F}
+Shots_exp <- subset(Shots_All, select = c(shot.statsbomb_xg,team, player.name))
+
+Shots_exp <- Shots_exp  %>%  mutate(player = player.name,
+                                      xg = shot.statsbomb_xg,
+                                      team = gsub("Women's","",team),
+                                      .keep="unused")
+
+#view(Shots_exp)
+
+df_shots_exp_succeed <- aggregate(x = Shots_exp$xg, by = list(Shots_exp$player), FUN = sum)
+#df_shots_exp_succeed <- df_shots_exp_succeed %>% mutate(player=Group.1, 
+#                               df_shots_exp_ratio=df_shots_exp_succeed/df_shots_exp_total)
+
+#view(df_shots_exp_succeed)
+colnames(df_shots_exp_succeed) <- c("player", "xG")
+#view(df)
+#view(df_shots_exp_succeed)
+df2 <- merge(df, df_shots_exp_succeed, by=c("player"))
+df2 <- df2 %>% mutate(xG_ratio = df_shots_exp_succeed$xG/total_shots)
+#,                  .keep = "unused")
+
+#view(df2)
+
+print(length(df2$player))
+#view(df2)
+
+df2 <- df2[df2$total_shots>=1,] # Removing players that attempted less than 1 shots
+
+print(length(df2$player)) # 398 players attempted at least 1 shots in the WC
+
+#We now have a df containing every player that shots at least once in the World cup, associated with their xg
+
+```
+
+```{r,include=F}
+pays = c("France", "England", "Spain", "Switzerland") #Select teams we wish to observe
+pays <- melt(df$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #Select all teams
+
+df2_player <- df2[df2$team %in% pays,]
+
+
+
+df2_player$groupv2 <- ifelse(df2_player$team %in% pays_gs, "8-GS",
+                              ifelse(df2_player$team %in% pays_r16, "7-R16",
+                                     ifelse(df2_player$team %in% pays_quarterfinals, "6-Quarterfinals",
+                                            ifelse(df2_player$team == "Australia", "4th",
+                                                   ifelse(df2_player$team == "Sweden", "3rd",
+                                                          ifelse(df2_player$team == "England", "2nd",
+                                                                 ifelse(df2_player$team=="Spain","1st","NA")))))))
+
+
+mean_shots_completion_ratio = mean_goals_nb/mean_shots_nb
+mean_shots_nb = mean(df2_player$total_shots)
+mean_goals_nb = mean(df2_player$total_goals)
+mean_shots_xG =  mean(df2_player$xG)
+mean_shots_xG_ratio = mean_shots_xG/mean_shots_nb
+
+df2_player[nrow(df2_player) + 1,] <- list("Mean Player", "Mean Player", mean_shots_nb, mean_shots_completion_ratio, mean_goals_nb, "Mean Player", mean_shots_xG, mean_shots_xG_ratio)
+
+
+
+#view(df2_player)
+```
+
+
+```{r fig8 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig8}Goal ratio on the Expected Goal ratio (StatsBomb model) for players",fig.height=4,fig.align='center'}
+p2 <- ggplot(df2_player, aes(xG_ratio, shots_completion_ratio, size = total_shots, label = player, colour=groupv2)) + 
+    geom_point(shape=21) + geom_abline(intercept = 0, slope = 1, linetype = "dashed") + scale_color_viridis(discrete=TRUE) + geom_point(data = df2_player[df2_player$team == "Mean Player", ], aes(xG_ratio, shots_completion_ratio, size = total_shots), shape = 4, color = "red4", stroke = 1) + labs(x = "Expected Goal's ratio", y = "True Goal's Ratio", fill = "World Cup's Stages", color = "World Cup's Stages")
+
+# Display “Mean Player” with a red cross
+
+#p2 <- p2 + geom_point(data = df2_player[df2_player$team == "Mean Player", ], aes(xG_ratio, shots_completion_ratio, size = total_shots), shape = 4, color = "red4", stroke = 1)
+
+ggplotly(p2)
+p2
+```
+
+This graph compares the number of goals predicted by StatsBomb with the actual goals scored. It shows whether players scored more or fewer goals than the StatsBomb model predicted. We observe the same biases as in the previous graph: players who scored on their only shot appear to be better performers, but this does not guarantee consistent performance, as we cannot assess regularity. This observation also applies to all players represented by the smaller circles.
+
+Since neither axis in this graph displays the number of shots taken, we add this information by modifying the size of the circle representing each player. This adjustment emphasizes the importance of considering the number of matches played and the frequency of shots taken during the game.
+
+Interpreting this graph, we can see from the colors that most players who reached the quarter-finals or beyond are clustered around the dotted line, which symbolizes player performance. This line, represented by the equation y = x, indicates the expected performance of the players. Thus, we can deduce that players from teams that advanced to the quarter-finals and beyond under performed less frequently and over performed less often, as they took more shots, reducing the bias from a single successful difficult shot.\
+
+
+### Teams scoring ratio
+
+Secondly, we analyzed teams using the same method we applied to players, which could lead to additional insights. This approach reduces the number of outliers because we are analyzing all team players who took at least one shot during the tournament. For instance, if a midfielder took only one shot and scored, while a striker took ten shots and scored twice, the mid-fielder's bias has less impact on the team's overall performance. Therefore, this team analysis allows us to determine which teams under performed in terms of goals and to investigate whether this correlates with the teams that were eliminated earliest in the competition.
+
+Figure \ref{fig:fig9} visualizes the goal ratio relative to the total shots taken by teams that made at least one attempt during the World Cup.\
+
+```{r,include=F}
+df_shots_total <- aggregate(x = Shots$outcome, by = list(Shots$player), FUN = length)
+df_shots_succeed <- aggregate(x = Shots$outcome, by = list(Shots$player), FUN = sum)
+
+df <- merge(df_shots_succeed, df_shots_total, by=c("Group.1")) %>% mutate(player = Group.1,
+                                                                               completed_shots = x.x,
+                                                                               total_shots = x.y,
+                                                                               .keep="unused")
+
+df1 <- subset(Shots, selec = c(player, team))
+#view(df1)
+
+df <- merge(df1, df, by=c("player"))
+#view(df)
+df <- df %>% distinct()
+
+df <- df %>% mutate(shots_completion_ratio = completed_shots/total_shots,
+                    total_shots = total_shots,
+                    total_goals = completed_shots,
+                    .keep = "unused")
+
+print(length(df$player))
+#view(df)
+
+df <- df[df$total_shots>=1,] # Removing players that attempted less than 1 shots
+
+print(length(df$player)) # 398 players attempted at least 1 shots in the WC
+
+#We now have a df containing every player that shots at least once in the World cup, associated with how many shots they attempted, and their ratio of successful shots
+
+#pays = c("France", "England", "Spain", "Switzerland") #Countries we wish to observe
+#pays = c("Switzerland")
+pays <- melt(df$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #select all teams
+
+#view(pays)
+
+df_pays <- df[df$team %in% pays,]
+
+for (i in 0:length(pays))
+  df_pays[nrow(df_pays) + 1,] <- list(paste("",pays[i]), paste("", pays[i]), 
+                                      sum(df_pays$total_shots[df_pays$team == pays[i]]), 
+                                      0,
+                                      sum(df_pays$total_goals[df_pays$team == pays[i]]))
+
+df_pays <- subset(df_pays, select = -c(player))
+
+n <- length(pays)
+
+#view(df_pays)
+
+dftail <- df_pays[(nrow(df_pays)-(n - 1)):nrow(df_pays),] %>% mutate(team = gsub(" ","",team),
+                                                                     shots_completion_ratio = total_goals/total_shots,
+                                                                     total_shots = total_shots,
+                                                                     total_goals = total_goals,
+                                                                     .keep = "unused")
+
+#pays_gs <- pays_gs %>% mutate(team=gsub(" ","",x))
+
+dftail$groupv2 <- ifelse(dftail$team %in% pays_gs, "8-GS",
+                              ifelse(dftail$team %in% pays_r16, "7-R16",
+                                     ifelse(dftail$team %in% pays_quarterfinals, "6-Quarterfinals",
+                                            ifelse(dftail$team == "Australia", "4th",
+                                                   ifelse(dftail$team == "Sweden", "3rd",
+                                                          ifelse(dftail$team == "England", "2nd",
+                                                                 ifelse(dftail$team=="Spain","1st","NA")))))))
+
+mean_shots_nb_pays = mean(dftail$total_shots)
+mean_goals_nb_pays = mean(dftail$total_goals)
+mean_shots_completion_ratio_pays = mean_goals_nb_pays/mean_shots_nb_pays
+
+
+
+dftail[nrow(dftail) + 1,] <- list("Mean Country", mean_shots_nb_pays, mean_shots_completion_ratio_pays, mean_goals_nb_pays, "Mean Country")
+
+#view(dftail)
+```
+
+
+```{r fig9 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig9}Goal ratio on the number of total shots for teams",fig.width=8, fig.asp=0.8,fig.align='center'}
+p1 <- ggplot(dftail, aes(total_shots, shots_completion_ratio, label=team, color = groupv2)) + geom_text(aes(fontface=2)) + scale_color_viridis(discrete=TRUE) + geom_point(data = dftail[dftail$team == "Mean Country", ], aes(total_shots, shots_completion_ratio), shape = 4, color = "red4", size = 4) + labs(x = "Total Number of Shots", y = "True Goal's Ratio", fill = "World Cup's Stages", color = "World Cup's Stages")
+
+# Display “Mean Country” with a red cross
+#p1 <- p1 + geom_point(data = dftail[dftail$team == "Mean Country", ], aes(total_shots, shots_completion_ratio), shape = 4, color = "red4", size = 4)
+
+ggplotly(p1)
+p1
+```
+In this graph, countries are represented by dots labeled with their names, and the color indicates the stage of the competition they reached. There is a clear separation between the bottom left of the image, which represents countries with few shots and few goals, and the top right, which includes the eight best teams, excluding Colombia.
+
+We observe that Spain, the tournament winner, took many more shots than its rivals but scored less, suggesting strong domination during matches but less effective finishing. It would be interesting to investigate whether the difficulty of the shots explains the lower accuracy or if there is another interpretation.
+
+Other outliers include Sweden, which finished third and had the highest ratio of successful shots, and Vietnam and Haiti, which did not score a single goal during the competition.
+
+Similar to our player analysis, we aim to implement Expected Goal (xG) data to assess and analyze the difficulty of shots taken by teams.
+
+Figure \ref{fig:fig10} shows the true goal ratio relative to the StatsBomb xG ratio for each team during the World Cup.\
+```{r,include=F}
+Shots_exp <- subset(Shots_All, select = c(shot.statsbomb_xg,team, player.name))
+
+Shots_exp <- Shots_exp  %>%  mutate(player = player.name,
+                                      xg = shot.statsbomb_xg,
+                                      team = gsub("Women's","",team),
+                                      .keep="unused")
+
+#view(Shots_exp)
+
+df_shots_exp_succeed <- aggregate(x = Shots_exp$xg, by = list(Shots_exp$player), FUN = sum)
+#df_shots_exp_succeed <- df_shots_exp_succeed %>% mutate(player=Group.1, 
+#                               df_shots_exp_ratio=df_shots_exp_succeed/df_shots_exp_total)
+
+#view(df_shots_exp_succeed)
+colnames(df_shots_exp_succeed) <- c("player", "xG")
+#view(df)
+#view(df_shots_exp_succeed)
+df2 <- merge(df, df_shots_exp_succeed, by=c("player"))
+df2 <- df2 %>% mutate(xG_ratio = df_shots_exp_succeed$xG/total_shots)
+#,                  .keep = "unused")
+
+#view(df2)
+
+print(length(df2$player))
+#view(df2)
+
+df2 <- df2[df2$total_shots>=1,] # Removing players that attempted less than 1 shots
+
+print(length(df2$player)) # 398 players attempted at least 1 shots in the WC
+
+#We now have a df containing every player that shots at least once in the World cup, associated with their xg
+
+#pays2 = c("France", "England", "Spain", "Switzerland") #Countries we wish to observe
+pays2 <- melt(df2$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #select all teams
+
+#view(pays2)
+
+df2_pays <- df2[df2$team %in% pays2,]
+#view(df2_pays)
+
+for (i in 0:length(pays2))
+  df2_pays[nrow(df2_pays) + 1, ] <- list(paste("",pays2[i]), paste("", pays2[i]),
+                                        sum(df2_pays$total_shots[df2_pays$team == pays2[i]]),
+                                        sum(df2_pays$shots_completion_ratio[df2_pays$team == pays2[i]]),
+                                        sum(df2_pays$total_goals[df2_pays$team == pays2[i]]),
+                                        sum(df2_pays$xG[df2_pays$team == pays2[i]]),
+                                        0)
+  
+df2_pays <- subset(df2_pays, select = -c(player))
+
+#view(df2_pays)
+n <- length(pays2)
+
+df2tail <- df2_pays[(nrow(df2_pays)-(n - 1)):nrow(df2_pays),]  %>% mutate(team = gsub(" ","",team),
+                                                                      shots_completion_ratio = total_goals/total_shots,
+                                                                     total_shots = total_shots,
+                                                                     total_goals = total_goals,
+                                                                     xG = xG,
+                                                                     xG_ratio = xG/total_shots,
+                                                                     .keep = "unused")
+
+#view(df2tail)
+
+df2tail$groupv2 <- ifelse(df2tail$team %in% pays_gs, "8-GS",
+                              ifelse(df2tail$team %in% pays_r16, "7-R16",
+                                     ifelse(df2tail$team %in% pays_quarterfinals, "6-Quarterfinals",
+                                            ifelse(df2tail$team == "Australia", "4th",
+                                                   ifelse(df2tail$team == "Sweden", "3rd",
+                                                          ifelse(df2tail$team == "England", "2nd",
+                                                                 ifelse(df2tail$team=="Spain","1st","NA")))))))
+
+mean_shots_nb_pays = mean(df2tail$total_shots)
+mean_goals_nb_pays = mean(df2tail$total_goals)
+mean_shots_completion_ratio_pays = mean_goals_nb_pays/mean_shots_nb_pays
+mean_shots_xG_pays = mean(df2tail$xG)
+mean_shots_xG_ratio_pays = mean_shots_xG_pays/mean_shots_nb_pays
+
+df2tail[nrow(df2tail) + 1,] <- list("Mean Country", mean_shots_nb_pays, mean_shots_completion_ratio_pays, mean_goals_nb_pays, mean_shots_xG_pays, mean_shots_xG_ratio_pays, "Mean Country")
+
+
+#view(df2tail)
+```
+
+
+```{r fig10 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig10}Goal ratio on the Expected Goal ratio (StatsBomb model) for teams",fig.width=8, fig.asp=0.8,fig.align='center'}
+p3 <- ggplot(df2tail, aes(xG_ratio, shots_completion_ratio, size = total_shots, label=team, color = groupv2)) + geom_text(aes(fontface=3)) + geom_abline(intercept = 0, slope = 1, linetype = "dashed") + scale_color_viridis(discrete=TRUE) + geom_point(data = df2tail[df2tail$team == "Mean Country", ], aes(xG_ratio, shots_completion_ratio, size = total_shots), shape = 4, color = "red4", stroke = 1) + labs(x = "Expected Goal's Ratio", y = "True Goal's Ratio", fill = "World Cup's Stages", color = "World Cup's Stages")
+
+# Display “Mean Country” with a red cross
+#p3 <- p3 + geom_point(data = df2tail[df2tail$team == "Mean Country", ], aes(xG_ratio, shots_completion_ratio, size = total_shots), shape = 4, color = "red4", stroke = 1)
+
+ggplotly(p3)
+p3
+```
+
+In this graph, we can extend our interpretations from the previous graph. Sweden, on the right-hand side of the graph, had the easiest shots on average according to StatsBomb's model and performed as expected, or even slightly better, as it lies just above the dotted line that marks expected performance.
+
+For Spain, we see that they had the most difficult shots among all the teams that reached the quarter-finals, except for Colombia. This explains why Spain had a higher number of shots with a relatively low success ratio compared to their main rivals.
+
+It is noticeable that the best teams have higher xGs, indicating that their shots are more likely to succeed on average. This could mean that their forwards are getting into better shooting positions, either due to their superior skill or because the opposing teams' defenders are weaker. This suggests that the defense of the best teams is significantly stronger compared to that of the teams eliminated earlier in the tournament, making it difficult for these weaker teams to score.
+
+Having compared the true goal ratio to the StatsBomb xG ratio, we wanted to understand how an xG model works in detail. Therefore, we decided to create our own xG model.\
+
+\clearpage
+
+# Models analysis
+
+We developed various models to create our own xG model, identifying the most relevant variables for predicting goals.\
+
+```{r,include=F}
+#We create a df with just the shots
+
+shots = WC2023_dataframe %>%
+ filter(type.name=="Shot")
+#view(shots)
+```
+
+We run a logistic regression model: we want the output to be 0 or 1 depending on whether the shot turns into a goal.\
+
+## First model : body part, technique, type of shot
+
+The first model keeps the variables studied previously : body part, technique, type of shot. \
+
+```{r,include=F}
+df_model_1 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name)
+df_model_1$shot.outcome.name <- ifelse(df_model_1$shot.outcome.name == "Goal", 1, 0)
+```
+
+```{r, include = F}
+#Testing regression without interaction
+
+glm.model_1<-glm(shot.outcome.name~ . ,data=df_model_1,family=binomial(link="logit"))
+summary(glm.model_1)
+```
+
+```{r,include=F}
+#We see a skewed shot.type.namePenalty because the corner modality is taken as reference and, given that there were no shots or goals during the competition, the model considers 100% success for the corner modality.
+
+
+#We change the reference modality from “corner” to “penalty”.
+df_model_1_modif=df_model_1
+df_model_1_modif$shot.type.name <- relevel(as_factor(df_model_1_modif$shot.type.name), ref = "Penalty")
+
+glm.model_1_modif <- glm(shot.outcome.name ~ . , data = df_model_1_modif, family = binomial(link = "logit"))
+summary(glm.model_1_modif)
+```
+
+```{r,include=F}
+#We can see that Open Play and Free Kick are less likely to result in a goal than a penalty kick. The corner remains distorted
+```
+
+```{r,include=F}
+#R2 calculation:
+R2_model1=1-(glm.model_1$deviance/glm.model_1$null.deviance)
+print(R2_model1)
+```
+$R^2$ for the model without interaction is : \( `r R2_model1` \) \
+```{r,include=F}
+#Testing regression with interaction
+glm.model_1_interac<-glm(shot.outcome.name~ .^2 ,data=df_model_1,family=binomial(link="logit"))
+summary(glm.model_1_interac)
+#A lot of NA because some interactions are impossible (e.g. volleyball restart on a penalty kick).
+```
+
+
+```{r,include=F}
+#R2 calculation:
+R2_model1_interac=1-(glm.model_1_interac$deviance/glm.model_1_interac$null.deviance)
+print(R2_model1_interac)
+```
+
+$R^2$ for the model with interaction is : \( `r R2_model1_interac` \) .\
+
+## Our target model : the expected goal variable
+
+We now create a model composed of a single variable: the expected goal given in StatsBomb.\
+
+
+```{r,include=F}
+df_model_2 <- dplyr::select(shots,shot.statsbomb_xg,shot.outcome.name)
+df_model_2$shot.outcome.name <- ifelse(df_model_2$shot.outcome.name == "Goal", 1, 0)
+
+glm.model_2<-glm(shot.outcome.name~ . ,data=df_model_2,family=binomial(link="logit"))
+summary(glm.model_2)
+```
+
+```{r,include=F}
+R2_model2=1-(glm.model_2$deviance/glm.model_2$null.deviance)
+print(R2_model2)
+```
+
+Our goal in creating the different models in this section is to find the most accurate model possible, which can have an $R^2$ close to this model (with only the expected goal as a variable), i.e. an $R^2$ close to : \( `r R2_model2` \).\
+
+## Model 3 : Adding location.x and location.y
+
+Any player on the field is represented as a moving point within a rectangle measuring 80 by 120 meters. The player's horizontal movement, from one goal post to another, is tracked by the variable location.x, while the vertical movement is tracked by location.y. We have now added location.x and location.y to our previously adjusted model. \
+
+```{r,include=F}
+df_model_3 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.y)
+
+df_model_3$shot.outcome.name <- ifelse(df_model_3$shot.outcome.name == "Goal", 1, 0)
+```
+
+```{r,include=F}
+#Model without interaction
+glm.model_3<-glm(shot.outcome.name ~ . ,data=df_model_3,family=binomial(link="logit"))
+summary(glm.model_3)
+```
+
+
+```{r,include=F}
+R2_model_3=1-(glm.model_3$deviance/glm.model_3$null.deviance)
+print(R2_model_3)
+```
+We test a regression without interaction, and obtain an $R^2$ of : \( `r R2_model_3` \) .\
+
+
+```{r,include=F}
+#Model with interaction
+
+glm.model_3_interac<-glm(shot.outcome.name~ .^2 ,data=df_model_3,family=binomial(link="logit"))
+summary(glm.model_3_interac)
+```
+
+```{r,include=F}
+R2_model_3_interac=1-(glm.model_3_interac$deviance/glm.model_3_interac$null.deviance)
+print(R2_model_3_interac)
+```
+
+With interactions, we get an $R^2$ of : \( `r R2_model_3_interac` \).\
+
+In this model, we targeted the main variables to obtain a good model and an $R^2$ as close to 1 as possible.
+
+### Significance of variables ?
+
+
+We run several tests to see which variables are significant in the model. \
+
+```{r,echo=F}
+model_simp<-glm(shot.outcome.name~ (location.x +location.y + shot.body_part.name+shot.type.name)^2 ,data=df_model_3,family=binomial(link="logit"))
+anova(model_simp,glm.model_3_interac,test="Chisq")
+```
+
+We see that we can remove the technique because $p-value$>0.05 so we can accept the sub-model with a 95% level.\
+
+```{r,include=F}
+summary(model_simp)
+```
+
+
+```{r,include=F}
+R2_model_simp=1-(model_simp$deviance/model_simp$null.deviance)
+print(R2_model_simp)
+```
+
+For this sub-model without the technique variable we obtain an $R^2$ of : \( `r R2_model_simp` \)
+
+The $R^2$ is no greater than for model 3 with interactions: this is normal because the $R^2$ favors models with many variables.\
+We should look at other variables such as AIC score, which is minimal for model 3 without interactions. \
+
+```{r,include=F}
+#We'll compare the fitted values (probability of being a goal), with the expected goals.
+glm.model_3$fitted.values
+#we have numbers between 0 and 1 so this is good.
+
+```
+
+### Comparison of norms
+
+We now want to compare model 3 with and without interaction : the closer the 2-norm is to 0, the better the model. 
+
+
+```{r,include=F}
+
+#Display norm L2 for the model_3 without interaction
+
+norm_L2_mod3 <- norm(glm.model_3$fitted.values - shots$shot.statsbomb_xg, type = "2")
+print(norm_L2_mod3)
+
+#Display norm L2 for the model_3 with interactions 
+
+norm_L2_mod3withinteractions <- norm(glm.model_3_interac$fitted.values - shots$shot.statsbomb_xg, type = "2")
+print(norm_L2_mod3withinteractions)
+
+
+```
+
+Norm L2 for the model_3 without interaction is equal to : \( `r norm_L2_mod3` \). \
+
+The value for the model_3 with interactions is : \( `r norm_L2_mod3withinteractions` \).\
+
+We find the same results as with the AIC criterion. This is consistent with the fact that $R^2$ favors models with many variables, so it's better to evaluate with AIC. We can conclude that the model 3 without interaction is best.
+
+We do the same to compare model 1 with and without interaction.
+
+```{r,include=F}
+
+#Display norm L2 for the model_1 without interaction
+norm_L2_mod1 <- norm(glm.model_1$fitted.values - shots$shot.statsbomb_xg, type = "2")
+print(norm_L2_mod1)
+
+#Display norm L2 for the model_1 with interactions
+norm_L2_mod1withinteractions <- norm(glm.model_1_interac$fitted.values - shots$shot.statsbomb_xg, type = "2")
+print(norm_L2_mod1withinteractions)
+
+```
+
+The L2 norms are respectively :  \( `r norm_L2_mod1` \) and \( `r norm_L2_mod1withinteractions` \). \
+
+Both models are less accurate than the 3rd one.
+
+
+## Model 4 : adding the under_pressure variable
+
+We now create a new model like the model_3, but adding a variable : under_pressure.\
+
+### Test for significance of single variables
+
+First, we test the significance of this new variable.
+
+```{r,echo=F}
+df_model_4 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.y,under_pressure)
+df_model_4$shot.outcome.name <- ifelse(df_model_4$shot.outcome.name == "Goal", 1, 0)
+
+#Replace NA with “false” in the under_pressure column
+df_model_4$under_pressure <- ifelse(is.na(df_model_4$under_pressure), FALSE, df_model_4$under_pressure)
+
+#Testing the model with only the under_pressure variable
+glm.model_4 <- glm(shot.outcome.name ~ under_pressure, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4)
+```
+
+
+We see that \( p_{\text{value}} < 0.05 \), so we reject $H_0$ : playing under pressure is significant. \
+
+Estimated coefficients are negative, so playing under pressure reduces the probability of scoring. \
+
+
+
+
+```{r,include=F}
+glm.model_4_bodypart <- glm(shot.outcome.name ~ shot.body_part.name, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4_bodypart)
+
+#The probability of marking the head is lower than for other parts of the body.
+
+```
+```{r,include=F}
+model_constant= glm(shot.outcome.name ~ 1, data = df_model_4, family = binomial(link = "logit"))
+anova(model_constant,glm.model_4_bodypart,test="Chisq")
+```
+
+
+
+Testing the model with only the shot.body_part.name variable gives us a $p_{value}$ of :
+\( `r round(anova(model_constant, glm.model_4_bodypart, test="Chisq")$Pr[2], digits = 3)` \). \
+We reject $H_0$, the technique variable is significant.
+
+
+
+We now want to test the model with only the shot.technique.name variable.
+
+
+```{r,echo=F}
+
+glm.model_4_technique <- glm(shot.outcome.name ~ shot.technique.name, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4_technique)
+```
+
+The reference is backheel : all the other techniques are better, we have a lot of values close to 1, we could do a constant sub-model to see if this variable is significant. \
+
+```{r,include=F}
+model_constant= glm(shot.outcome.name ~ 1, data = df_model_4, family = binomial(link = "logit"))
+anova(model_constant,glm.model_4_technique,test="Chisq")
+```
+
+We find a $p_{value}$ of \( `r round(anova(model_constant, glm.model_4_technique, test="Chisq")$Pr[2], digits = 3)` \).
+We reject $H_0$, the technique variable is significant.
+
+
+
+We are now testing the model with only the shot.type.name variable. We also run a sub-model test. \
+
+
+```{r,include=F}
+
+glm.model_4_type <- glm(shot.outcome.name ~ shot.type.name, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4_type)
+
+```
+
+```{r,include=F}
+anova(model_constant,glm.model_4_type,test="Chisq")
+```
+We find a $p_{value}$ of \( `r round(anova(model_constant, glm.model_4_type, test="Chisq")$Pr[2], digits = 3)` \).
+
+The variable shot.type.name is significant, we reject $H_0$.
+
+
+
+We do the same with the variable location.x : 
+
+```{r,include=F}
+glm.model_4_loc_x <- glm(shot.outcome.name ~ location.x, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4_loc_x)
+```
+
+```{r,include=F}
+anova(model_constant,glm.model_4_loc_x,test="Chisq")
+```
+We see a $p_{value}$ of : \( `r round(anova(model_constant, glm.model_4_loc_x, test="Chisq")$Pr[2], digits = 3)` \). <0.05 so location.x is highly significant.\
+
+
+We check if the variable location.y is significant as well. \
+
+```{r,include=F}
+glm.model_4_loc_y <- glm(shot.outcome.name ~ location.y, data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_4_loc_y)
+```
+
+```{r,include=F}
+anova(model_constant,glm.model_4_loc_y,test="Chisq")
+```
+
+The $p_{value}$ is : \( `r round(anova(model_constant, glm.model_4_loc_y, test="Chisq")$Pr[2], digits = 3)` \). > 0.05 so location.y is not significant.\
+
+
+### Testing the complete model
+
+
+The model is now tested with all the following variables: shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.y,under_pressure.\
+
+
+```{r,include=F}
+#We test now with all the variable in the model 3+under_pressure 
+glm.model_5 <- glm(shot.outcome.name ~ ., data = df_model_4, family = binomial(link = "logit"))
+summary(glm.model_5)
+AIC_model5=AIC(glm.model_5)
+R2_model5=1-(glm.model_5$deviance/glm.model_5$null.deviance)
+print(R2_model5)
+```
+
+We have an $R^2$ of \( `r R2_model5` \) which is good, but it's normal because it's a model with many variables. \
+
+We also note a low AIC, which is equal to \texttt{`r AIC_model5`}.\
+
+## Model 5 : adding the position of the goalkeeper
+
+
+We create the same model as above, but adding the position of the goalkeeper. \
+
+### Does the position of the goalkeeper in x and y improve our results ? 
+
+First we test the model with only the location.x.GK variable.\
+
+```{r,echo=F}
+#Create a new df with all previous variables + goalkeeper position
+df_model_6 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.y,under_pressure,location.x.GK,location.y.GK)
+df_model_6$shot.outcome.name <- ifelse(df_model_6$shot.outcome.name == "Goal", 1, 0)
+
+#Replace NA with “false” in the under_pressure column
+df_model_6$under_pressure <- ifelse(is.na(df_model_6$under_pressure), FALSE, df_model_6$under_pressure)
+
+#Note that for penalty kicks there is no value for the position of the goalkeeper on the pitch, so we set his position on his line, i.e. at x=120, in the location.x.GK column.
+df_model_6$location.x.GK <- ifelse(is.na(df_model_6$location.x.GK), 125.0, df_model_6$location.x.GK)
+
+#Testing the model with only the location.x.GK variable
+glm.model_6_location.x.GK <- glm(shot.outcome.name ~ location.x.GK, data = df_model_6, family = binomial(link = "logit"))
+summary(glm.model_6_location.x.GK)
+
+AIC_model6_locx_GK=AIC(glm.model_6_location.x.GK)
+
+print(1-(glm.model_6_location.x.GK$deviance/glm.model_6_location.x.GK$null.deviance))
+```
+
+Significant effect of goal position in x because both $p_{values}$ are lower than 0.5. \
+The AIC value is low, equals to \texttt{`r AIC_model6_locx_GK`}.\
+
+Then we do the same but with the location.y.GK variable.\
+
+```{r,include=F}
+# As before we note that for penalty kicks there is no value for the position of the goalkeeper on the pitch, so we set his position on his line, i.e. at y=40, in the location.y.GK column.
+df_model_6$location.y.GK <- ifelse(is.na(df_model_6$location.y.GK), 40.0, df_model_6$location.y.GK)
+
+#We test the model with only the variable location.y.GK
+glm.model_6_location.y.GK <- glm(shot.outcome.name ~ location.y.GK, data = df_model_6, family = binomial(link = "logit"))
+summary(glm.model_6_location.y.GK)
+
+AIC_model6_locy_GK=AIC(glm.model_6_location.y.GK)
+
+
+R2_model6loc_y_GK=1-(glm.model_6_location.y.GK$deviance/glm.model_6_location.y.GK$null.deviance)
+print(R2_model6loc_y_GK)
+```
+
+We find that the variable for keeper position in y is significant as well.
+AIC is slightly higher than for position in x, it's equal to \texttt{`r AIC_model6_locy_GK`}.\
+
+
+### Complete model 
+
+
+
+```{r,include=F}
+#Testing the model with all df6 variables without interaction
+glm.model_6 <- glm(shot.outcome.name ~ ., data = df_model_6, family = binomial(link = "logit"))
+summary(glm.model_6)
+
+AIC_model6=AIC(glm.model_6)
+
+R2_model6=1-(glm.model_6$deviance/glm.model_6$null.deviance)
+print(R2_model6)
+
+```
+
+For the model with all the preceding variables and without interaction, we find a very low AIC=\texttt{`r AIC_model6`}. \
+We can conclude that this model is really good.\
+
+
+## Keeping all significant variables and removing location.y
+
+```{r,include=F}
+#We create a new df without location.y
+df_model_7 <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,under_pressure,location.x.GK,location.y.GK)
+df_model_7$shot.outcome.name <- ifelse(df_model_7$shot.outcome.name == "Goal", 1, 0)
+
+#Replace NA with “false” in the under_pressure column
+df_model_7$under_pressure <- ifelse(is.na(df_model_7$under_pressure), FALSE, df_model_7$under_pressure)
+
+#Note that for penalty kicks there is no value for the position of the goalkeeper on the pitch, so we set his position on his line, i.e. at x=120 and at y=40, in the location.x.GK column.
+df_model_7$location.x.GK <- ifelse(is.na(df_model_7$location.x.GK), 120.0, df_model_7$location.x.GK)
+df_model_7$location.x.GK <- ifelse(is.na(df_model_7$location.y.GK), 40.0, df_model_7$location.y.GK)
+
+#Test the model with all variables
+glm.model_7 <- glm(shot.outcome.name ~ ., data = df_model_7, family = binomial(link = "logit"))
+summary(glm.model_7)
+
+AIC_model7=AIC(glm.model_7)
+
+R2_model7=1-(glm.model_7$deviance/glm.model_7$null.deviance)
+print(R2_model7)
+
+```
+
+Since we found that location.y is not significant, we can remove it from the model.\ 
+
+Without this variable, the AIC is even lower, at \texttt{`r AIC_model7`}.\
+
+We can conclude that we have found our best model for now and it's composed of the variables : 
+
+body_part, shot.technique, shot.type, location.x, under_pressure, location.x.GK, location.y.GK.\
+
+## Replacing location.y
+
+```{r, include=F}
+df_model_8 <- dplyr::select(shots,shot.outcome.name,location.x,location.y,)
+df_model_8 <- df_model_8 %>% mutate(distance_to_center = case_when(location.y >40 ~ location.y-40,
+                                                                   location.y<=40 ~ -(location.y-40)))
+
+df_model_8$shot.outcome.name <- ifelse(df_model_8$shot.outcome.name == "Goal", 1, 0)
+
+glm.model_8 <- glm(shot.outcome.name ~ location.x + distance_to_center, data = df_model_8, family = binomial(link = "logit"))
+summary(glm.model_8)
+
+AIC_model8=AIC(glm.model_8)
+
+R2_model8=1-(glm.model_8$deviance/glm.model_8$null.deviance)
+print(R2_model8)
+```
+
+Since location.y is a very insignificant variable, we now consider offense as symmetrical with respect to the axis passing through the center point of the pitch and the penalty spots. We redefine location.y as the distance to center, with this new variable ranging from 0 to 40 meters. This adjustment should give more meaningful insights, as a high distance to center indicates that a player is very off-center.
+
+```{r, echo = F,eval = TRUE, warning=FALSE}
+options(repr.plot.height = 20, repr.plot.width = 10, repr.res = 1000)
+part = 256
+
+new_df_predicted <- data.frame(x = numeric(part^2),
+                         y = numeric(part^2))
+
+for (i in (1:part)){
+    for (j in (1:part)){
+      loc_x = ((i-1)*120 + i*120)/(2*part)
+      loc_y = ((j-1)*80 + j*80)/(2*part)
+      new_df_predicted[(i-1)*part+j,]$x = loc_x
+      new_df_predicted[(i-1)*part+j,]$y = loc_y
+  }
+}
+
+new_df_predicted <- new_df_predicted %>% mutate(location.x = x,
+                                                location.y = y,
+                                    distance_to_center = case_when(y >40 ~ y-40,
+                                                                   y<=40 ~ -(y-40)))
+
+new_df_predicted <- new_df_predicted %>% mutate(xg = predict(glm.model_8, new_df_predicted, type="response"))
+create_Pitch(opposing=TRUE, Heatmap = TRUE, df_heatmap = new_df_predicted, grass_colour = NA, line_colour = "white", goaltype = "box")
+```
+
+The heat map above shows expected results: from a very simple model that only uses location and distance to center, the model predicts better scoring chances for point-blank shots compared to shots taken outside the penalty area. This is easily explained by the fact that our dataset contains few goals made from outside this area.
+
+```{r,echo=F, include = F}
+#We want to compare our xg obtained with model 7 with those of statsbomb :
+
+#We have a size problem between the two vectors: there are missing values
+#We obtain the indices of missing observations for all variables in model 7
+
+indices_obs_manquantes <- which(!complete.cases(df_model_7))
+indices_non_manquants <- setdiff(1:nrow(df_model_7), indices_obs_manquantes)
+
+#Only rows with no missing observations are kept
+statsbomb_xg <- shots$shot.statsbomb_xg[indices_non_manquants]
+
+df_plot <- data.frame(statsbomb_xg = statsbomb_xg, fitted = glm.model_7$fitted.values)
+
+#We compare both
+ggplot(df_plot, aes(x = seq_along(statsbomb_xg))) +
+  geom_point(aes(y = statsbomb_xg), color = "blue") +
+  geom_point(aes(y = fitted), color = "red") +
+  labs(title = "Comparison of statsbomb_xg and fitted values",
+       x = "Observations",
+       y = "Values") +
+  theme_minimal()
+
+ggplot(df_plot, aes(x = seq_along(statsbomb_xg))) +
+  geom_point(aes(y = log(statsbomb_xg)), color = "blue") +
+  geom_point(aes(y = log(fitted)), color = "red") +
+  labs(title = "Comparison of statsbomb_xg and fitted values",
+       x = "Observations",
+       y = "Values") +
+  theme_minimal()
+
+
+#We plot one against the other: xg against our fitted values
+ggplot(df_plot, aes(x = statsbomb_xg, y = fitted)) +
+  geom_point() + 
+  geom_abline(intercept = 0, slope = 1, color = "red") + 
+  labs(title = "Comparison of statsbomb_xg and fitted values",
+       x = "statsbomb_xg",
+       y = "Fitted values") + 
+  theme_minimal()
+```
+
+
+```{r,echo=F}
+#Same as transforming to log
+ggplot(df_plot, aes(x = log(statsbomb_xg), y = log(fitted))) +
+  geom_point() + 
+  geom_abline(intercept = 0, slope = 1, color = "red") + 
+  labs(title = "Comparison of statsbomb_xg and fitted values",
+       x = "statsbomb_xg",
+       y = "Fitted values") + 
+  theme_minimal()  
+
+
+```
+
+We have many values close to 0, so we use a log transformation to better observe the residuals.
+
+The data indicate that only one point is being overestimated by our model. This point corresponds to the goal made from a corner kick mentioned previously. Our model predicts an xG of 1, perfectly illustrating the limits of our model. We only worked on this reduced data set, and since only one corner shot was attempted, our model incorrectly assumes it is the most efficient shot. After transforming the residuals to their logarithmic counterparts, they appear well-adjusted for the most part, with the majority clustering around the desired spot. In the bottom right corner, we find points where our model underestimates the chance of a goal. These seem to be goals taken from far away, and our model consistently underestimates them. This is likely a consequence of our small data set. Overall, our model gets relatively close to the xG of StatsBomb.
+
+
+## Finding our best model with the AIC criterion
+
+```{r,echo=F}
+#Find the best model (that minimizes AIC)
+bestmod=stepAIC(glm.model_6, trace=FALSE)
+summary(bestmod)
+df_model_6_best <- dplyr::select(shots,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.x.GK)
+#Note that for penalty kicks there is no value for the position of the goalkeeper on the pitch, so we set his position on his line, i.e. at x=119, in the location.x.GK column.
+df_model_6_best$location.x.GK <- ifelse(is.na(df_model_6_best$location.x.GK), 119.0, df_model_6_best$location.x.GK)
+#view(df_model_6_best)
+```
+
+The findings suggest that y-positions are useless even for the goalkeeper, as only x-positions are significant.
+
+Our best model is composed of 5 variables : 
+The technique of shot, the type of shot, the body part used and the positions in x for the player and the goalkeeper.\
+
+# Analysis of the Model performance
+
+Now that we have developed our model composed of these five variables, we have questioned whether this type of model is superior to the StatsBomb xG model. Our primary objective is to assess the performance of our model.
+
+Similar to the comparison conducted in the "Descriptive Analysis" section of our report, we are now comparing the ratio of goals. However, instead of comparing given data, we predict the xG of every shot using our best model and then compare these xG values to those provided by StatsBomb through visual graphics.
+
+Figure \ref{fig:fig11} presents a visualization of these results.\
+
+
+```{r,echo=F}
+Shots_exp_predi <- subset(shots, select = c(team.name, player.name,shot.statsbomb_xg,shot.outcome.name,shot.body_part.name,shot.technique.name,shot.type.name,location.x,location.x.GK))
+Shots_exp_predi <- Shots_exp_predi  %>%  mutate(player = player.name,
+                                      .keep="unused")
+#Note that for penalty kicks there is no value for the position of the goalkeeper on the pitch, so we set his position on his line, i.e. at x=120, in the location.x.GK column.
+Shots_exp_predi$location.x.GK <- ifelse(is.na(Shots_exp_predi$location.x.GK), 120.0, Shots_exp_predi$location.x.GK)
+
+# Calculer les probabilités prédites de réussite de chaque passe (xG)
+xG_predi <- predict(bestmod, newdata = Shots_exp_predi, type = "response")
+
+Shots_exp_predi$xG_predi <- xG_predi
+Shots_exp_predi$xGdiff <- Shots_exp_predi$shot.statsbomb_xg - Shots_exp_predi$xG_predi #We create a indicator to see the difference between the StatsBomb xG and the predicted one
+#We don'ttake the absolute value of this difference to keep the information of which model predict a greater probability than the others ("+" is the StatsBomb one /// "-" is our's)
+
+
+#view(xG_predi)
+#view(Shots_exp_predi)
+
+
+df_shot_xG_succeed <- aggregate(x = Shots_exp_predi$shot.statsbomb_xg, by = list(Shots_exp_predi$player), FUN = sum)
+df_shot_xGpredi_succeed <- aggregate(x = Shots_exp_predi$xG_predi, by = list(Shots_exp_predi$player), FUN = sum)
+
+colnames(df_shot_xG_succeed) <- c("player", "xG")
+colnames(df_shot_xGpredi_succeed) <- c("player", "xG_predi")
+#view(df_shot_xG_succeed)
+#view(df_shot_xGpredi_succeed)
+
+
+df2 <- merge(df, df_shots_exp_succeed, by=c("player"))
+#view(df2)
+df2 <- df2 %>% mutate(xG_ratio = df_shots_exp_succeed$xG/total_shots)
+#,                  .keep = "unused")
+
+df2 <- subset(df2, select = -xG)
+df3 <- merge(df2, df_shot_xG_succeed, by=c("player"))
+#view(df3)
+df3 <- merge(df3, df_shot_xGpredi_succeed, by=c("player"))
+
+
+df3 <- df3 %>% mutate(xG_ratio = df_shot_xG_succeed$xG/total_shots,
+                      xG_predi_ratio = df_shot_xGpredi_succeed$xG_predi/total_shots,
+                        total_shots=total_shots,
+                        .keep = "unused")
+
+print(length(df3$player))
+
+df3 <- df3[df3$total_shots>=1,] # Removing players that attempted less than 1 shots
+#view(df3)
+print(length(df3$player)) # 398 players attempted at least 1 shot in the WC
+
+#We now have a df containing every player that shots at least once in the World cup, associated with their xg
+```
+
+```{r,echo=F}
+pays = c("France", "England", "Spain", "Switzerland") #Select teams we wish to observe
+pays <- melt(df3$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #Select all teams
+#view(df3)
+df3_player <- df3[df3$team %in% pays,]
+#view(df3_player)
+
+df3_player$groupv2 <- ifelse(df3_player$team %in% pays_gs, "8-GS",
+                              ifelse(df3_player$team %in% pays_r16, "7-R16",
+                                     ifelse(df3_player$team %in% pays_quarterfinals, "6-Quarterfinals",
+                                            ifelse(df3_player$team == "Australia", "4th",
+                                                   ifelse(df3_player$team == "Sweden", "3rd",
+                                                          ifelse(df3_player$team == "England", "2nd",
+                                                                 ifelse(df3_player$team=="Spain","1st","NA")))))))
+
+
+mean_shots_nb = mean(df3_player$total_shots)
+mean_goals_nb = mean(df3_player$total_goals)
+mean_shots_completion_ratio = mean_goals_nb/mean_shots_nb
+mean_shots_xG = mean(df3_player$xG)
+mean_shots_xG_ratio = mean_shots_xG/mean_shots_nb
+mean_shots_xG_predi = mean(df3_player$xG_predi)
+mean_shots_xG_predi_ratio = mean_shots_xG_predi/mean_shots_nb
+
+df3_player[nrow(df3_player) + 1,] <- list("Mean Player", "Mean Player", mean_shots_nb, mean_shots_completion_ratio, mean_goals_nb, mean_shots_xG_ratio, mean_shots_xG, mean_shots_xG_predi, mean_shots_xG_predi_ratio, "Mean Player")
+
+
+#view(df3_player)
+```
+
+
+```{r fig11 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fi11}StatsBomb xG ratio on our xG ratio based on bestmod for players",fig.height=4.5,fig.align='center'}
+p4 <-ggplot(df3_player, aes(xG_predi_ratio, xG_ratio, size = total_shots, label = player, colour=groupv2)) + geom_point(shape=21) + geom_abline(intercept = 0, slope = 1, linetype = "dashed") + scale_color_viridis(discrete=TRUE) + geom_point(data = df3_player[df3_player$team == "Mean Player", ], aes(xG_predi_ratio, xG_ratio, size = total_shots), shape = 4, color = "red4", stroke = 1) + labs(x = "Our Model's Prediction of the xG's ratio", y = "StatsBomb's Model xG's Ratio", fill = "World Cup's Stages", color = "World Cup's Stages")
+
+# Display “Mean Player” with a red cross
+#p4 <- p4 + geom_point(data = df3_player[df3_player$team == "Mean Player", ], aes(xG_predi_ratio, xG_ratio,  size = total_shots), shape = 4, color = "red4", stroke = 1)
+
+ggplotly(p4)
+p4
+```
+
+We observe that when displaying the ratio of the xG we predicted to those from StatsBomb, the results exhibit very little variation, indicating that our model closely aligns with that of StatsBomb! However, for a precise comparison between our model and StatsBomb's, it is essential to display the xG for each shot.
+
+This is depicted in Figure \ref{fig:fig12} below:\
+
+```{r fig12 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig12}StatsBomb xG  on our xG  based on bestmod for every shots in the World Cup",fig.height=4.5,fig.align='center'}
+pp <-ggplot(Shots_exp_predi, aes(xG_predi, shot.statsbomb_xg, color=xGdiff)) + geom_point(shape=21) + geom_abline(intercept = 0, slope = 1, linetype = "dashed") +   scale_color_gradientn(colors = c("darkblue", "blue3", "blue2", "darkolivegreen3", "gold" ,"darkgoldenrod2", "darkred")) + labs(x = "Our Model's Prediction of the xG's ratio", y = "StatsBomb's Model xG's Ratio", fill = "Differences of xG", color = "Differences of xG")
+
+ggplotly(pp)
+pp
+```
+
+The results indicate that our models are comparable for the majority of shots. Nonetheless, we do observe some outliers, which may be elucidated by including additional factors such as the type of shot, whether it is a free kick, an open play shot, a penalty, a corner, and so forth. This is illustrated in Figure \ref{fig:fig13} below:\
+
+```{r,echo=F}
+#view(Shots_exp_predi)
+
+df_xGdiff <- Shots_exp_predi[order(Shots_exp_predi$xGdiff),] #We sort the dataframe in ascending order of the difference between statsbomb's xG and our xG
+#view(df_xGdiff)
+
+#We retrieve the first x rows (the largest values)
+x <- 50
+df_top_xGdiff <- head(df_xGdiff, x)
+df_low_xGdiff <- tail(df_xGdiff, x)
+
+
+#view(df_top_xGdiff)
+#view(df_low_xGdiff)
+
+df_top_xGdiff$source <- "StatsBomb xG > Our's xG"
+df_low_xGdiff$source <- "StatsBomb xG < Our's xG"
+
+# Combiner les deux DataFrames
+df_combined <- rbind(df_top_xGdiff, df_low_xGdiff)
+```
+
+
+```{r fig13 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig13}StatsBomb xG  on our xG  based on bestmod and the type of shots for the 100 shots with the higher xG difference",fig.width=8,fig.asp=0.7,fig.align='center'}
+#To understand where can these differences came from we plot the shots with the highest differences and we print the type of shots
+p_combined <- ggplot(df_combined, aes(x = xG_predi, y = shot.statsbomb_xg, label = shot.type.name, color = source)) +
+  geom_text(aes(fontface=3)) +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") + labs(x = "Our Model's Prediction of the xG's ratio", y = "StatsBomb's Model xG's Ratio", color = "Difference xGs")
+
+ggplotly(p_combined)
+p_combined
+```
+
+
+```{r, eval=F, echo=F}
+#To understand where can these differences came from we plot the shots with the highest differences and we print the body part with which the shot was taken
+p_combined2 <- ggplot(df_combined, aes(x = xG_predi, y = shot.statsbomb_xg, label = shot.body_part.name, color = source)) +
+  geom_text(aes(fontface=3)) +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+  labs(color = "Source") + 
+  theme_minimal()
+
+ggplotly(p_combined2)
+
+#To understand where can these differences came from we plot the shots with the highest differences and we print the technique of the shots
+
+
+p_combined3 <- ggplot(df_combined, aes(x = xG_predi, y = shot.statsbomb_xg, label = shot.technique.name, color = source)) +
+  geom_text(aes(fontface=3)) +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+  labs(color = "Source") +
+  theme_minimal()
+
+ggplotly(p_combined3)
+```
+
+Our results reveal a prominent bias in the model, particularly evident in the 'Corner' category situated at the bottom right of the graph. In this instance, our model predicts an xG of 1, while StatsBomb predicts an xG of almost 0. During the competition, there was a successful in-swinging corner, leading our model, trained solely on this event, to classify all in-swinging corners as shots with a goal probability exceeding 0.99. Conversely, StatsBomb's model, likely trained on a broader dataset, possesses enough historical data to recognize that this rare type of shot seldom results in a goal, thereby assigning a probability close to 0.
+
+Explaining the other points is more complex. These predominantly consist of open play shots, where numerous other factors come into play. Our model incorporates only five variables: the type of shot (penalty, free kick, open play, etc.), the shot technique (normal, lob, volley, bicycle kick, etc.), the body part used for the shot, and the distance between the player and the goalkeeper. Consequently, we may be overlooking certain information, such as shot angle or whether the player was under pressure. To refine our model and address the idiosyncrasies of this competition, including anomalies like the in-swinging corner, further data from women's football tournaments is required, analyzing more than the current 64 matches.
+
+
+\clearpage
+
+# Another Model : Expected Pass
+
+Having scrutinized the Expected Goal (xG) values provided by StatsBomb and formulated our own xG prediction model, we pondered whether StatsBomb offered a comparable metric for passes—an Expected Pass (xP) indicator, forecasting the likelihood of a pass succeeding based on various parameters. To our surprise, such an indicator was not available. Consequently, we undertook the task of implementing one, employing the same methodology utilized for our xG model. We opted to develop this model for passes due to the significant correlation between a football team's performance and goals, which ultimately determine match outcomes. However, upon observing football matches, it becomes apparent that certain teams encounter difficulties in creating scoring opportunities and goal-scoring situations due to challenges in executing passes between lines, through passes, player combinations, technical skills, or dribbles.
+
+We observed that teams advancing to the quarterfinals generally demonstrated superior xG and True Goal Ratios compared to others, albeit with exceptions such as Colombia. This model offers us an avenue to delve into another facet of the intricate sport of football.
+
+For instance, did Colombia excel in play construction compared to their opponents, thereby securing a quarterfinal berth despite similar xG and True Goal Ratios? Furthermore, do we observe a similar trend regarding goal-scoring prowess among top teams? These inquiries motivated the development of this passes analysis model.
+
+## Quick Descriptive Analysis
+
+```{r, eval=T, echo=F}
+Passes_All <- Events %>% filter(type.name=="Pass")
+#view(Passes_All)
+Passes_All <- Passes_All  %>%  mutate(team = gsub(" ","",team.name),
+                                      .keep="unused")
+
+#view(Passes_All)
+Pass <- subset(Passes_All, select = c(pass.outcome.name,team, player.name))
+```
+
+```{r, eval=T, echo=F}
+Pass <- Pass  %>%  mutate(player = player.name,
+                                      outcome = case_when(is.na(pass.outcome.name) ~ 1,
+                                                         !is.na(pass.outcome.name) ~ 0),
+                                      team = gsub("Women's","",team),
+                                      .keep="unused")
+
+
+
+#View(Passes_All)
+```
+
+### Player-by-player visualization
+
+```{r, eval=T, echo=F, include=FALSE} 
+df_pass_total <- aggregate(x = Pass$outcome, by = list(Pass$player), FUN = length)
+df_pass_succeed <- aggregate(x = Pass$outcome, by = list(Pass$player), FUN = sum)
+
+df <- merge(df_pass_succeed, df_pass_total, by=c("Group.1")) %>% mutate(player = Group.1,
+                                                                               completed_pass = x.x,
+                                                                               total_pass = x.y,
+                                                                               .keep="unused")
+
+df1 <- subset(Pass, selec = c(player, team))
+#view(df1)
+
+df <- merge(df1, df, by=c("player"))
+#view(df)
+df <- df %>% distinct()
+
+df <- df %>% mutate(pass_completion_ratio = completed_pass/total_pass,
+                    total_pass = total_pass,
+                    total_pass_completed = completed_pass,
+                    .keep = "unused")
+
+print(length(df$player))  # 612 players attempted at least 1 pass in the WC
+#view(df)
+
+df <- df[df$total_pass>=4,] # Removing players that attempted less than 4 passes
+
+print(length(df$player)) # 588 players attempted at least 4 pass in the WC
+
+#We now have a df containing every player that shot at least once in the World cup, associated with how many shots they attempted, and their ratio of successful shots
+
+#pays = c("France", "England", "Spain", "Switzerland") #Select teams we wish to observe
+pays <- melt(df$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #Select all teams
+
+df_player <- df[df$team %in% pays,]
+
+
+df_player$groupv2 <- ifelse(df_player$team %in% pays_gs, "8-GS",
+                              ifelse(df_player$team %in% pays_r16, "7-R16",
+                                     ifelse(df_player$team %in% pays_quarterfinals, "6-Quarterfinals",
+                                            ifelse(df_player$team == "Australia", "4th",
+                                                   ifelse(df_player$team == "Sweden", "3rd",
+                                                          ifelse(df_player$team == "England", "2nd",
+                                                                 ifelse(df_player$team=="Spain","1st","NA")))))))
+
+mean_pass_completion_ratio = mean(df_player$pass_completion_ratio)
+mean_pass_nb = mean(df_player$total_pass)
+mean_pass_completed_nb = mean(df_player$total_pass_completed)
+
+df_player[nrow(df_player) + 1,] <- list("Mean Player", "Mean Player", mean_pass_nb, mean_pass_completion_ratio, mean_pass_completed_nb, "Mean Player")
+#view(df_player)
+```
+
+
+```{r fig14 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig14}True Pass ratio on the Total Number of Pass for every player with 5 pass or more during the WC",fig.width=10,fig.asp=0.8,fig.align='center'}
+p6 <- ggplot(df_player, aes(total_pass, pass_completion_ratio, label = paste("player =", player, ", team =", team ), color = groupv2)) + geom_point() +  scale_color_viridis(discrete=TRUE)
+
+p6 <- p6 + geom_point(data = df_player[df_player$team == "Mean Player", ], aes(total_pass, pass_completion_ratio),  size = 2, shape = 4, color = "red4", stroke = 1) + labs(x = "Total of Pass during the World Cup", y = "True Successful Pass Ratio for Players", color = "World Cup Stages") 
+
+ggplotly(p6)
+p6
+```
+
+This graph depicts the ratio of successful passes to the total number of passes. Once again, a noticeable disparity is evident: players from countries that advanced to the quarterfinals occupy the uppermost positions on the graph, boasting a successful pass ratio exceeding 60%, whereas teams eliminated in the round of 16 and group stages display notably lower pass ratios. It is worth mentioning that even within these less successful teams, a considerable number of players exhibit pass ratios comparable to those in the top-performing teams. This suggests potential variations within these countries, likely indicating a greater degree of diversity in player performance.\
+
+
+### Team-by-team visualization
+
+```{r, eval=T, echo=F, include=FALSE} 
+df_pass_total <- aggregate(x = Pass$outcome, by = list(Pass$player), FUN = length)
+df_pass_succeed <- aggregate(x = Pass$outcome, by = list(Pass$player), FUN = sum)
+
+df <- merge(df_pass_succeed, df_pass_total, by=c("Group.1")) %>% mutate(player = Group.1,
+                                                                               completed_pass = x.x,
+                                                                               total_pass = x.y,
+                                                                               .keep="unused")
+
+df1 <- subset(Pass, selec = c(player, team))
+#view(df1)
+
+df <- merge(df1, df, by=c("player"))
+#view(df)
+df <- df %>% distinct()
+
+df <- df %>% mutate(pass_completion_ratio = completed_pass/total_pass,
+                    total_pass = total_pass,
+                    total_pass_succeed = completed_pass,
+                    .keep = "unused")
+
+print(length(df$player))
+#view(df)
+
+df <- df[df$total_pass>=1,] # Removing players that attempted less than 1 pass
+
+print(length(df$player)) # 612 players attempted at least 1 pass in the WC
+
+#We now have a df containing every player that shots at least once in the World cup, associated with how many shots they attempted, and their ratio of successful shots
+
+#pays = c("France", "England", "Spain", "Switzerland") #Countries we wish to observe
+#pays = c("Switzerland")
+pays <- melt(df$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #select all teams
+
+#view(pays)
+
+df_pays <- df[df$team %in% pays,]
+
+for (i in 0:length(pays))
+  df_pays[nrow(df_pays) + 1,] <- list(paste("",pays[i]), paste("", pays[i]), 
+                                      sum(df_pays$total_pass[df_pays$team == pays[i]]), 
+                                      0,
+                                      sum(df_pays$total_pass_succeed[df_pays$team == pays[i]]))
+
+df_pays <- subset(df_pays, select = -c(player))
+
+n <- length(pays)
+
+#view(df_pays)
+
+dftail <- df_pays[(nrow(df_pays)-(n - 1)):nrow(df_pays),] %>% mutate(team = gsub(" ","",team),
+                                                                     pass_completion_ratio = total_pass_succeed/total_pass,
+                                                                     total_pass = total_pass,
+                                                                     total_pass_succeed = total_pass_succeed,
+                                                                     .keep = "unused")
+
+#pays_gs <- pays_gs %>% mutate(team=gsub(" ","",x))
+
+dftail$groupv2 <- ifelse(dftail$team %in% pays_gs, "8-GS",
+                              ifelse(dftail$team %in% pays_r16, "7-R16",
+                                     ifelse(dftail$team %in% pays_quarterfinals, "6-Quarterfinals",
+                                            ifelse(dftail$team == "Australia", "4th",
+                                                   ifelse(dftail$team == "Sweden", "3rd",
+                                                          ifelse(dftail$team == "England", "2nd",
+                                                                 ifelse(dftail$team=="Spain","1st","NA")))))))
+
+
+mean_pass_completion_ratio_pays = mean(dftail$pass_completion_ratio)
+mean_pass_nb_pays = mean(dftail$total_pass)
+mean_pass_completed_nb_pays = mean(dftail$total_pass_succeed)
+
+dftail[nrow(dftail) + 1,] <- list("Mean Country", mean_pass_nb_pays, mean_pass_completion_ratio_pays, mean_pass_completed_nb_pays, "Mean Country")
+
+#view(dftail)
+```
+
+
+```{r fig15 ,echo=F,eval=TRUE,fig.cap="\\label{fig:fig15}True Pass ratio on the Total Number of Pass for every teams during the WC",fig.width=10,fig.asp=0.8,fig.align='center'}
+p7 <- ggplot(dftail, aes(total_pass, pass_completion_ratio, label=team, color = groupv2)) + geom_text(aes(fontface=2)) + scale_color_viridis(discrete=TRUE)
+
+p7 <- p7 + geom_point(data = dftail[dftail$team == "Mean Country", ], aes(total_pass, pass_completion_ratio),  size = 2, shape = 4, color = "red4", stroke = 1) + labs(x = "Total of Pass during the World Cup", y = "True Successful Pass Ratio for Teams", color = "World Cup Stages") 
+
+ggplotly(p7)
+p7
+```
+
+We analyzed the statistics by country and observed a consistent trend, with a notable distinction for Spain. Spain made significantly more passes than other teams that played a similar number of matches, such as Sweden, Australia, and England, while also achieving a higher pass ratio. When combined with shooting data, where Spain had many more shots than its competitors, this observation reaffirms that Spain controlled their matches more effectively, with higher possession and more opportunities. This trend likely extends to England, the other finalist team. As for Sweden and Australia, the third and fourth-place teams respectively, we can infer that their passes were riskier, potentially involving more line-breaking passes or through balls. Colombia, once again, is positioned among teams that were eliminated earlier and aligns with the average performance level of the competition.
+
+To provide deeper interpretation and validate our analyses with these visualizations, we will now focus on the Expected Pass (xP) indicator, particularly the difficulty of the passes. However, since StatsBomb did not provide an xP indicator in the data set, we will not be able to compare our models to some better models with a wider training set.\
+
+## Implementing the Pass model we created
+
+```{r, eval=T, echo=F, include=FALSE} 
+Passes_All <- free_allevents(AllMatches) %>% filter(type.name=="Pass")
+Passes_Cleaned <- cleanlocations(Passes_All)
+#View(Passes_Cleaned)
+```
+
+```{r, eval=T, echo=F, include=FALSE}
+# Let's try to predict whether a pass will be completed or not.
+# We will be looking at several different parameters for this model : the length, the angle, and whether a pass is under pressure or not. We also added the seconds, to verify the relevance of the results.
+
+dfmod <- data.frame(Passes_Cleaned['pass.length'],Passes_Cleaned['pass.angle'],Passes_Cleaned['pass.outcome.name'], Passes_Cleaned['under_pressure'], Passes_Cleaned['second'], Passes_Cleaned['location.x'], Passes_Cleaned['location.y'])
+
+#Let's transform the data using the mutate() and case_when() functions. Also, we are renaming some of the attributes to clearer names.
+
+dfmod <- dfmod  %>%  mutate(length = pass.length,
+                      angle = pass.angle,
+                      outcome = case_when(is.na(pass.outcome.name) ~ 1,
+                                         !is.na(pass.outcome.name) ~ 0),
+                      under_pressure = case_when(is.na(under_pressure) ~ 0,
+                                                !is.na(under_pressure) ~ 1))
+
+#Transformer la variable angle
+
+# Removing unnecessary columns
+
+dfmod <- subset(dfmod, select = -c(pass.length, pass.angle, pass.outcome.name))
+#view(dfmod)
+
+# Setting up the model
+
+m1 <- glm(outcome ~ length*angle*under_pressure*second + location.x + location.y, data=dfmod)
+
+# Removing unnecessary parameters from the model
+
+mBIC <- step(m1, backward=TRUE, k=log(nrow(dfmod)), trace=FALSE)
+summary(mBIC)
+
+# The BIC step procedure removed the "second" (this one is no surprise...) and "angle" parameters from the model.
+```
+
+
+```{r, eval=T, echo=F, include=FALSE}
+R2 = 1 - 465.61/507.53
+print(R2)
+# R2 = 0.0825961, not very good by any means (with passes from France only, R2 = 0.07331737 with every pass from WC2023F)
+```
+
+```{r, eval=T, echo=F, include=FALSE}
+#The location.y parameter was not considered relevant enough for the model. Adding the distance to center, as the location.y attribute should have a symmetrical impact along the halfline (the ones passing through the goalposts) from a strategical standpoint. 
+
+dfmod <- dfmod %>% mutate(distance_to_center = case_when(location.y >40 ~ location.y-40,
+                                                   location.y<=40 ~ -(location.y-40)))
+
+dfmod <- subset(dfmod, select = -c(second, location.y))
+
+#view(dfmod)
+```
+
+
+
+```{r, eval=T, echo=F, include=FALSE}
+# There seems to be some non-linear dependencies within the model, as our barplot suggested.
+
+dfmod <- dfmod %>% mutate(length_sq = length**2)
+
+mtest <- glm(outcome ~ location.x*distance_to_center*length + angle * location.x + angle * distance_to_center + length*angle*under_pressure*length_sq - length:length_sq - length:under_pressure:length_sq, data=dfmod)
+summary(mtest)
+
+mfinal <- step(mtest, backward=TRUE, k=log(nrow(dfmod)),trace=FALSE)
+summary(mfinal)
+
+# Piste de Sébastien : Modèle de xP, xG, comparer résultat de regression logistique à un modèle de machine learning (SVM, Random forest, ...)
+```
+
+```{r, eval=T, echo=F, include=FALSE}
+R2 <- 1 - 421.78/507.53
+print(R2)
+```
+
+```{r, eval=T, echo=F, include=FALSE}
+#We predict the results for each pass
+xP <- predict(mfinal, newdata = dfmod, type = "response")
+
+# We add the xP for all passes 
+dfmod$xP <- xP
+
+print(dfmod)
+```
+
+```{r, eval=T, echo=F, include=FALSE}
+Pass_exp <- subset(Passes_All, select = c(team.name, player.name))
+#view(Pass_exp)
+
+Pass_exp <- Pass_exp  %>%  mutate(player = player.name,
+                                      team = gsub(" Women's","",team.name),
+                                      .keep="unused")
+
+# Calculate the predicted probability of success for each pass (xP)
+Pass_exp$xP <- xP
+Pass_exp$xPdiff <- Pass_exp$xP - Pass_exp$xP
+#view(Pass_exp)
+
+df_pass_exp_succeed <- aggregate(x = Pass_exp$xP, by = list(Pass_exp$player), FUN = sum)
+#df_pass_exp_succeed <- df_pass_exp_succeed %>% mutate(player=Group.1, 
+#                               df_pass_exp_ratio=df_pass_exp_succeed/df_pass_exp_total)
+
+#view(df_pass_exp_succeed)
+colnames(df_pass_exp_succeed) <- c("player", "xP")
+#view(df)
+#view(df_pass_exp_succeed)
+df2p <- merge(df, df_pass_exp_succeed, by=c("player"))
+
+df2p <- df2p %>% mutate(xP_ratio = df_pass_exp_succeed$xP/total_pass,
+                        total_pass=total_pass,
+                        .keep = "unused")
+#view(df2p)
+
+print(length(df2p$player))
+
+df2p <- df2p[df2p$total_pass>=1,] # Removing players that attempted less than 1 pass
+#view(df2p)
+print(length(df2p$player)) # 612 players attempted at least 1 pass in the WC
+
+#We now have a df containing every player that shots at least once in the World cup, associated with their xP
+```
+### Comparaison xP to True Pass Ratio visualization
+
+#### For hard shots
+
+```{r, eval=T, echo=F, include=FALSE}
+#We want to keep only the 25% of passes with the lowest xP (i.e. the hardest).
+q1<-quantile(df2p$xP_ratio,0.25)
+print(q1)
+df2p_hard <- df2p[df2p$xP_ratio<=q1,] # Keeping only the 25% hardest passes.
+#view(df2p_hard)
+```
+```{r, eval=T, echo=F}
+#pays = c("France", "England", "Spain", "Switzerland") #Select teams we wish to observe
+pays <- melt(df2p_hard$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #Select all teams
+#view(df2p_player)
+#view(df2p)
+
+df2p_player <- df2p_hard[df2p_hard$team %in% pays,]
+#view(df2p_player)
+
+df2p_player$groupv2 <- ifelse(df2p_player$team %in% pays_gs, "8-GS",
+                              ifelse(df2p_player$team %in% pays_r16, "7-R16",
+                                     ifelse(df2p_player$team %in% pays_quarterfinals, "6-Quarterfinals",
+                                            ifelse(df2p_player$team == "Australia", "4th",
+                                                   ifelse(df2p_player$team == "Sweden", "3rd",
+                                                          ifelse(df2p_player$team == "England", "2nd",
+                                                                 ifelse(df2p_player$team=="Spain","1st","NA")))))))
+
+mean_pass_completion_ratio = mean(df2p_player$pass_completion_ratio)
+mean_pass_nb = mean(df2p_player$total_pass)
+mean_pass_success=mean(df2p_player$total_pass_succeed)
+mean_pass_xP = mean(df2p_player$xP)
+mean_pass_xP_ratio = mean(df2p_player$xP/df2p_player$total_pass)
+
+df2p_player[nrow(df2p_player) + 1,] <- list("Mean Player", "Mean Player", mean_pass_nb, mean_pass_completion_ratio, mean_pass_success, mean_pass_xP, mean_pass_xP_ratio)
+
+#view(df2p_player)
+
+p8 <- ggplot(df2p_player, aes(xP_ratio, pass_completion_ratio, size = total_pass, label = player, colour=groupv2)) + 
+    geom_point(shape=21) + scale_color_viridis(discrete=TRUE) + geom_abline(intercept = 0, slope = 1, linetype = "dashed")
+
+p8 <- p8 + geom_point(data = df2p_player[df2p_player$team == "Mean Player", ], aes(xP_ratio, pass_completion_ratio,  size = total_pass), shape = 4, color = "red4", stroke = 1)
+
+ggplotly(p8)
+```   
+
+
+#### For easy shots
+
+```{r, eval=T, echo=F, include=FALSE}
+#We want to keep only the 25% of passes with the highest xP (i.e. the easiest).
+q3<-quantile(df2p$xP_ratio,0.75)
+print(q3)
+df2p_easy <- df2p[df2p$xP_ratio>=q3,] # Keeping only the 25% easiest passes.
+#view(df2p_easy)
+```
+
+```{r, eval=T, echo=F, include=FALSE}
+#pays = c("France", "England", "Spain", "Switzerland") #Select teams we wish to observe
+pays <- melt(df2p_easy$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #Select all teams
+#view(df2p_player)
+#view(df2p)
+
+df2p_player <- df2p_easy[df2p_easy$team %in% pays,]
+#view(df2p_player)
+
+df2p_player$groupv2 <- ifelse(df2p_player$team %in% pays_gs, "8-GS",
+                              ifelse(df2p_player$team %in% pays_r16, "7-R16",
+                                     ifelse(df2p_player$team %in% pays_quarterfinals, "6-Quarterfinals",
+                                            ifelse(df2p_player$team == "Australia", "4th",
+                                                   ifelse(df2p_player$team == "Sweden", "3rd",
+                                                          ifelse(df2p_player$team == "England", "2nd",
+                                                                 ifelse(df2p_player$team=="Spain","1st","NA")))))))
+
+mean_pass_completion_ratio = mean(df2p_player$pass_completion_ratio)
+mean_pass_nb = mean(df2p_player$total_pass)
+mean_pass_success=mean(df2p_player$total_pass_succeed)
+mean_pass_xP = mean(df2p_player$xP)
+mean_pass_xP_ratio = mean(df2p_player$xP/df2p_player$total_pass)
+
+df2p_player[nrow(df2p_player) + 1,] <- list("Mean Player", "Mean Player", mean_pass_nb, mean_pass_completion_ratio, mean_pass_success, mean_pass_xP, mean_pass_xP_ratio)
+
+#view(df2p_player)
+
+p9 <- ggplot(df2p_player, aes(xP_ratio, pass_completion_ratio, size = total_pass, label = player, colour=groupv2)) + 
+    geom_point(shape=21) + scale_color_viridis(discrete=TRUE) + geom_abline(intercept = 0, slope = 1, linetype = "dashed")
+
+p9 <- p9 + geom_point(data = df2p_player[df2p_player$team == "Mean Player", ], aes(xP_ratio, pass_completion_ratio,  size = total_pass), shape = 4, color = "red4", stroke = 1)
+
+ggplotly(p9)
+```
+#### For all shots
+
+```{r, eval=T, echo=F, include=FALSE}
+#We know do the same things but for all passes not only the easiest and the hardest.
+
+#pays = c("France", "England", "Spain", "Switzerland") #Select teams we wish to observe
+pays <- melt(df2p$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #Select all teams
+#view(df2p_player)
+#view(df2p)
+
+df2p_player <- df2p[df2p$team %in% pays,]
+#view(df2p_player)
+
+df2p_player$groupv2 <- ifelse(df2p_player$team %in% pays_gs, "8-GS",
+                              ifelse(df2p_player$team %in% pays_r16, "7-R16",
+                                     ifelse(df2p_player$team %in% pays_quarterfinals, "6-Quarterfinals",
+                                            ifelse(df2p_player$team == "Australia", "4th",
+                                                   ifelse(df2p_player$team == "Sweden", "3rd",
+                                                          ifelse(df2p_player$team == "England", "2nd",
+                                                                 ifelse(df2p_player$team=="Spain","1st","NA")))))))
+
+mean_pass_completion_ratio = mean(df2p_player$pass_completion_ratio)
+mean_pass_nb = mean(df2p_player$total_pass)
+mean_pass_success=mean(df2p_player$total_pass_succeed)
+mean_pass_xP = mean(df2p_player$xP)
+mean_pass_xP_ratio = mean(df2p_player$xP/df2p_player$total_pass)
+
+df2p_player[nrow(df2p_player) + 1,] <- list("Mean Player", "Mean Player", mean_pass_nb, mean_pass_completion_ratio, mean_pass_success, mean_pass_xP, mean_pass_xP_ratio)
+
+#view(df2p_player)
+
+p10 <- ggplot(df2p_player, aes(xP_ratio, pass_completion_ratio, size = total_pass, label = player, colour=groupv2)) + 
+    geom_point(shape=21) + scale_color_viridis(discrete=TRUE) + geom_abline(intercept = 0, slope = 1, linetype = "dashed")
+
+p10 <- p10 + geom_point(data = df2p_player[df2p_player$team == "Mean Player", ], aes(xP_ratio, pass_completion_ratio,  size = total_pass), shape = 4, color = "red4", stroke = 1)
+
+ggplotly(p10)
+```
+
+
+###Comparaison xP to True Pass Ratio visualization - Pays par Pays
+
+
+```{r, eval=T, echo=F, include=FALSE}
+#pays2 = c("France", "England", "Spain", "Switzerland") #Countries we wish to observe
+pays2 <- melt(df2p$team) %>% distinct() %>% as.list() %>% unlist() %>% sort() %>% as.list() #select all teams
+
+#view(pays2)
+
+df2p_pays <- df2p[df2p$team %in% pays2,]
+#view(df2p_pays)
+
+for (i in 0:length(pays2))
+  df2p_pays[nrow(df2p_pays) + 1, ] <- list(paste("",pays2[i]), paste("", pays2[i]),
+                                        sum(df2p_pays$total_pass[df2p_pays$team == pays2[i]]),
+                                        sum(df2p_pays$pass_completion_ratio[df2p_pays$team == pays2[i]]),
+                                        sum(df2p_pays$total_pass_succeed[df2p_pays$team == pays2[i]]),
+                                        sum(df2p_pays$xP[df2p_pays$team == pays2[i]]),
+                                        0)
+  
+df2p_pays <- subset(df2p_pays, select = -c(player))
+
+#view(df2p_pays)
+n <- length(pays2)
+
+df2ptail <- df2p_pays[(nrow(df2p_pays)-(n - 1)):nrow(df2p_pays),]  %>% mutate(team = gsub(" ","",team),
+                                                                    pass_completion_ratio = total_pass_succeed/total_pass,
+                                                                    total_pass = total_pass,
+                                                                    total_pass_succeed = total_pass_succeed,
+                                                                    xP = xP,
+                                                                    xP_ratio = xP/total_pass,
+                                                                    .keep = "unused")
+#view(df2ptail)
+
+df2ptail$groupv2 <- ifelse(df2ptail$team %in% pays_gs, "8-GS",
+                              ifelse(df2ptail$team %in% pays_r16, "7-R16",
+                                     ifelse(df2ptail$team %in% pays_quarterfinals, "6-Quarterfinals",
+                                            ifelse(df2ptail$team == "Australia", "4th",
+                                                   ifelse(df2ptail$team == "Sweden", "3rd",
+                                                          ifelse(df2ptail$team == "England", "2nd",
+                                                                 ifelse(df2ptail$team=="Spain","1st","NA")))))))
+
+
+mean_pass_completion_ratio_pays = mean(df2ptail$pass_completion_ratio)
+mean_pass_nb_pays = mean(df2ptail$total_pass)
+mean_pass_success_pays = mean(df2ptail$total_pass_succeed)
+mean_pass_xP_pays = mean(df2ptail$xP)
+mean_pass_xP_ratio_pays = mean(df2ptail$xP/df2ptail$total_pass)
+
+df2ptail[nrow(df2ptail) + 1,] <- list("Mean Country", mean_pass_nb_pays, mean_pass_completion_ratio_pays, mean_pass_success_pays, mean_pass_xP_pays, mean_pass_xP_ratio_pays, "Mean Country")
+
+
+
+#view(df2ptail)
+
+
+p11 <- ggplot(df2ptail, aes(xP_ratio, pass_completion_ratio, size = total_pass, label=team, color = groupv2)) + geom_text(aes(fontface=3)) + geom_abline(intercept = 0, slope = 1, linetype = "dashed") + scale_color_viridis(discrete=TRUE)
+
+p11 <- p11 + geom_point(data = df2ptail[df2ptail$team == "Mean Country", ], aes(xP_ratio, pass_completion_ratio,  size = total_pass), shape = 4, color = "red4", stroke = 1)
+
+ggplotly(p11)
+```
+
+\clearpage
+
+# Conclusion
+
+Upon gaining a comprehensive understanding of football indicators and StatsBomb's data tracking methodology, we discerned trends among both the victorious and defeated teams in the 2023 FIFA Women’s World Cup. By focusing on specific teams like Spain, France or Colombia, we elucidated some factors contributing to their success. Leveraging basic logistic regression and utilizing a limited data set, we developed our own expected goal metric. Through successive variable selection steps, we achieved close approximation to the xG calculated by StatsBomb. Future research endeavors could enhance this analysis by incorporating more diverse data sets, encompassing data from other tournaments and leagues. Furthermore, employing advanced regression techniques, such as support vector machines or neural networks, could yield more precise predictions regarding the probability of a goal.
+
+\newpage
+# References
+
+[1] Christian Collet (2012). *The possession game? A comparative analysis of ball retention and team success in European and international football, 2007–2010* Retrieved from [https://www.tandfonline.com/doi/full/10.1080/02640414.2012.727455#:~:text=Using%20data%20from%20five%20European%20leagues%2C%20UEFA%20and,team%20quality%20and%20home%20advantage%20were%20accounted%20for.](https://www.tandfonline.com/doi/full/10.1080/02640414.2012.727455#:~:text=Using%20data%20from%20five%20European%20leagues%2C%20UEFA%20and,team%20quality%20and%20home%20advantage%20were%20accounted%20for.)
+
+[2] StatsBomb. (2022). *StatsBombR: R Wrapper for StatsBomb Data.* Retrieved from [https://github.com/statsbomb/StatsBombR](https://github.com/statsbomb/StatsBombR)
+
+[3] StatsBomb. (2022). *StatsBombR: R Wrapper for StatsBomb Data.* Retrieved from [https://statsbomb.com/](https://statsbomb.com/)
+
+[4] StatsBombR Specifications. Retrieved from [https://github.com/statsbomb/StatsBombR](https://github.com/statsbomb/StatsBombR)
+
+[5] Working with R: Accessing & Working With StatsBomb Data In R. (2021). Retrieved from [https://statsbomb.com/wp-content/uploads/2021/11/Working-with-R.pdf](https://statsbomb.com/wp-content/uploads/2021/11/Working-with-R.pdf)
+
+
+\newpage
+\listoffigures
